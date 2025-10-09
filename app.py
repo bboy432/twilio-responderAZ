@@ -53,6 +53,7 @@ try:
     TRANSFER_TARGET_PHONE_NUMBER = os.environ.get('TRANSFER_TARGET_PHONE_NUMBER')
     PUBLIC_URL = os.environ.get('PUBLIC_URL')
     FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
+    RECIPIENT_EMAILS = os.environ.get('RECIPIENT_EMAILS', '') # <-- ADD THIS LINE
 
     if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
         raise ValueError("One or more required environment variables are missing.")
@@ -60,8 +61,6 @@ try:
 except Exception as e:
     logging.critical(f"CRITICAL ERROR: Could not load configuration from environment variables: {e}")
     exit()
-
-# --- General Configuration ---
 
 # --- Contact Mapping ---
 KNOWN_CONTACTS = {
@@ -75,14 +74,18 @@ KNOWN_CONTACTS = {
 app = Flask(__name__)
 public_url = PUBLIC_URL
 
-# --- Placeholder for send_to_all function ---
-try:
-    from send_emails import send_to_all
-except ImportError:
-    logging.warning("Could not import 'send_to_all' from send_emails.py. Email notifications will be skipped.")
-    def send_to_all(subject, body):
-        logging.error("Email sending is not configured.")
-        pass
+# --- Email Placeholder ---
+def send_to_all(subject, body):
+    email_recipients = [e.strip() for e in RECIPIENT_EMAILS.split(',') if e.strip()]
+    if not email_recipients:
+        logging.warning("Email sending skipped: RECIPIENT_EMAILS environment variable is not set.")
+        return
+
+    logging.info("--- SIMULATING EMAIL SEND ---")
+    logging.info(f"Recipients: {', '.join(email_recipients)}")
+    logging.info(f"Subject: {subject}")
+    logging.info(f"Body:\n{body}")
+    logging.info("--- END OF SIMULATED EMAIL ---")
 
 # --- Global State Management ---
 active_automated_call = None
@@ -114,30 +117,32 @@ def get_network_info():
         logging.error(f"Could not get network info: {e}")
         return "Unknown Host", "Unknown IP"
 
-def get_overall_status():
-    """Checks recent logs for errors to determine overall status."""
-    error_lines = []
+def get_simple_status():
+    """Determines the simple status: Ready, In Use, or Error."""
+    if is_automated_call_active():
+        return "In Use", "An emergency call is being processed."
+
     try:
         with open(LOG_PATH, "r") as f:
             for line in f:
                 if "ERROR" in line.upper() or "CRITICAL" in line.upper():
-                    error_lines.append(line.strip())
-        if error_lines:
-            return "error", "Errors Detected", error_lines
-        
-        try:
-            result = subprocess.check_output(['systemctl', 'is-active', 'twilio-app.service']).decode('utf-8').strip()
-            if result == 'active':
-                return "ok", "Running", []
-        except:
-            pass
-            
-        return "ok", "Ready", []
-
+                    # Check if the error is recent (e.g., in the last 5 minutes)
+                    log_time_str = line.split(' - ')[0]
+                    log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S,%f')
+                    if datetime.now() - log_time < timedelta(minutes=5):
+                        return "Error", "A recent error was detected in the logs."
+        return "Ready", "System is online and waiting for calls."
     except FileNotFoundError:
-        return "ok", "Ready", []
-    except Exception as e:
-        return "error", f"Log Unreadable: {e}", [str(e)]
+        return "Ready", "System is online and waiting for calls."
+    except Exception:
+        return "Error", "Could not read log file to determine status."
+
+def get_last_n_calls(n=3):
+    """Parses the log file to get the last N handled calls."""
+    all_events = parse_log_for_timeline()
+    # Filter for events that represent a call being handled
+    call_events = [e for e in all_events if e['title'] == "Webhook: Emergency Triggered"]
+    return call_events[:n]
 
 def parse_log_for_timeline():
     events = []
@@ -195,62 +200,113 @@ def parse_log_for_timeline():
 # --- Emergency Logic Functions ---
 def set_automated_call_active(call_sid):
     global active_automated_call
-    with automated_call_lock: active_automated_call = call_sid
+    with automated_call_lock:
+        active_automated_call = call_sid
+
 def clear_automated_call():
     global active_automated_call
-    with automated_call_lock: active_automated_call = None
+    with automated_call_lock:
+        active_automated_call = None
+
 def is_automated_call_active():
-    with automated_call_lock: return active_automated_call is not None
+    with automated_call_lock:
+        return active_automated_call is not None
+
 def add_waiting_call(call_sid):
     with waiting_calls_lock:
         if call_sid not in waiting_calls:
             waiting_calls.append(call_sid)
+
 def get_next_waiting_call():
-    with waiting_calls_lock: return waiting_calls.pop(0) if waiting_calls else None
+    with waiting_calls_lock:
+        return waiting_calls.pop(0) if waiting_calls else None
+
 def update_chosen_phone(number):
     global latest_chosen_phone
-    with latest_phone_lock: latest_chosen_phone = number
+    with latest_phone_lock:
+        latest_chosen_phone = number
+
 def get_current_phone():
-    with latest_phone_lock: return latest_chosen_phone
+    with latest_phone_lock:
+        return latest_chosen_phone
+
 def store_emergency_data(data):
     global emergency_data
-    with emergency_data_lock: emergency_data = data
+    with emergency_data_lock:
+        emergency_data = data
+
 def update_call_status(call_type, status):
     with call_status_lock:
         call_statuses[call_type]['status'] = status
         call_statuses[call_type]['timestamp'] = datetime.now()
+
 def get_transfer_attempts(call_sid):
-    with transfer_attempts_lock: return transfer_attempts.get(call_sid, 0)
+    with transfer_attempts_lock:
+        return transfer_attempts.get(call_sid, 0)
+
 def increment_transfer_attempts(call_sid):
     with transfer_attempts_lock:
         transfer_attempts[call_sid] = transfer_attempts.get(call_sid, 0) + 1
     return transfer_attempts[call_sid]
+
 def log_request_details(req):
-    log_message = f"Request Details: {req.method} {req.url}\n"
-    log_message += f"From: {req.remote_addr}\nHeaders: {dict(req.headers)}\n"
-    log_message += f"Form Data: {dict(req.form)}\nQuery Params: {dict(req.args)}"
-    logging.info(log_message)
+    try:
+        log_message = f"Request Details: {req.method} {req.url}\n"
+        log_message += f"From: {req.remote_addr}\nHeaders: {dict(req.headers)}\n"
+        log_message += f"Form Data: {dict(req.form)}\nQuery Params: {dict(req.args)}"
+        logging.info(log_message)
+    except Exception as e:
+        logging.debug(f"Failed to log request details: {e}")
+
+# --- Formatting and Helper Functions ---
+
+def add_pauses_to_number(text):
+    """Adds periods between characters to create pauses for TTS."""
+    return '. '.join(list(text)) + '.'
+
 def format_emergency_message(data):
+    """Creates the detailed voice message for the emergency call."""
     try:
         target_number = get_current_phone()
         target_name = KNOWN_CONTACTS.get(target_number, "maintenance team")
-        message = (f"I'm transferring a call from Axiom Property Management after hours service to {target_name}. ")
-        return message
-    except KeyError as e:
-        logging.error(f"Missing required field for emergency message: {e}")
-        return "Emergency notification. Critical data missing."
+        
+        message_parts = [f"This is an emergency call from Axiom Property Management for {target_name}."]
+
+        if data.get('customer_name'):
+            message_parts.append(f"The customer's name is {data['customer_name']}.")
+        
+        if data.get('incident_address'):
+            message_parts.append(f"The address is {add_pauses_to_number(data['incident_address'])}.")
+
+        if data.get('user_stated_callback_number'):
+            message_parts.append(f"The callback number is {add_pauses_to_number(data['user_stated_callback_number'])}.")
+
+        if data.get('emergency_description_text'):
+            message_parts.append(f"The description of the emergency is: {data['emergency_description_text']}.")
+        
+        message_parts.append("This message will now repeat.")
+
+        full_message = ' '.join(message_parts)
+        # Repeat the message for better comprehension
+        return f"{full_message} {full_message}"
+
+    except Exception as e:
+        logging.error(f"Error formatting emergency message: {e}")
+        return "Emergency notification. Critical data was missing or an error occurred."
+
 def format_emergency_sms(data):
     try:
         target_number = get_current_phone()
         target_name = KNOWN_CONTACTS.get(target_number, "Maintenance Team")
         return (
             f"❗Emergency Alert❗ from Axiom Property Management\nTo: {target_name}\n\n"
-            f"Customer: {data['customer_name']}\nCallback: {data['user_stated_callback_number']}\n"
-            f"Address: {data['incident_address']}\n\nEmergency Details:\n{data['emergency_description_text']}"
+            f"Customer: {data.get('customer_name', 'N/A')}\nCallback: {data.get('user_stated_callback_number', 'N/A')}\n"
+            f"Address: {data.get('incident_address', 'N/A')}\n\nEmergency Details:\n{data.get('emergency_description_text', 'N/A')}"
         )
     except KeyError as e:
         logging.error(f"Missing field for SMS: {e}")
         return "Emergency Alert - Details unavailable"
+
 def format_final_email():
     if not emergency_data: return None, None
     target_number = get_current_phone()
@@ -258,7 +314,7 @@ def format_final_email():
     subject = f"❗EMERGENCY ALERT & CALL STATUS❗: Axiom - {target_name}"
     emergency_time = call_statuses['emergency_call']['timestamp']
     transfer_time = call_statuses['transfer_call']['timestamp']
-    # Build time strings separately to avoid nested f-string/quote issues
+    # Build time strings safely
     if emergency_time:
         try:
             emergency_time_str = emergency_time.strftime('%Y-%m-%d %H:%M:%S')
@@ -330,119 +386,53 @@ def make_emergency_call(message, data):
 # --- Flask Routes ---
 @app.route('/status', methods=['GET'])
 def status_page():
-    events = parse_log_for_timeline()
-    hostname, ip_address = get_network_info()
-    overall_status, status_text, error_lines = get_overall_status()
+    status, status_message = get_simple_status()
+    last_3_calls = get_last_n_calls(3)
+
     template = """<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="refresh" content="60">
-        <title>Server Timeline</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background-color: #f0f2f5; color: #1c1e21; }
-            .container { max-width: 900px; margin: 2em auto; padding: 0 1em; }
-            .main-header { padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 25px; }
-            .server-info { display: flex; justify-content: space-between; align-items: center; }
-            .server-name { font-size: 24px; font-weight: bold; color: #050505; }
-            .server-ip { font-size: 14px; color: #606770; font-family: "SF Mono", "Fira Code", monospace; }
-            .status-header { display: flex; align-items: center; margin-top: 10px; }
-            .status-header.error-true { cursor: pointer; }
-            .status-light { height: 12px; width: 12px; border-radius: 50%; margin-right: 8px; animation: pulse-ok 2s infinite; }
-            .status-light.ok { background-color: #31a24c; }
-            .status-light.error { background-color: #f02849; animation-name: pulse-error; }
-            @keyframes pulse-ok { 0% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(49, 162, 76, 0); } 100% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0); } }
-            @keyframes pulse-error { 0% { box-shadow: 0 0 0 0 rgba(240, 40, 73, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(240, 40, 73, 0); } 100% { box-shadow: 0 0 0 0 rgba(240, 40, 73, 0); } }
-            .status-text { font-size: 14px; font-weight: bold; }
-            .status-text.ok { color: #31a24c; }
-            .status-text.error { color: #f02849; }
-            .timeline { border-left: 3px solid #ccd0d5; padding: 0 0 20px 20px; position: relative;}
-            .event { background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; position: relative;}
-            .event-summary { padding: 15px; cursor: pointer; display: flex; align-items: center; border-radius: 8px;}
-            .event-summary:hover { background-color: #f5f6f7; }
-            .event-status-dot { height: 10px; width: 10px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
-            .event-status-dot.success { background-color: #31a24c; }
-            .event-status-dot.error { background-color: #f02849; }
-            .event-icon { font-size: 24px; margin-right: 15px; }
-            .event-title { font-weight: bold; font-size: 16px; color: #050505;}
-            .event-time { font-size: 12px; color: #606770; margin-top: 4px;}
-            .event-details { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background-color: #f5f6f7; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;}
-            .event-details.show { max-height: 500px; }
-            .event-details pre { margin: 0; padding: 15px; white-space: pre-wrap; word-wrap: break-word; font-family: "SF Mono", "Fira Code", monospace; font-size: 13px; color: #333; }
-            .timeline-dot { content: ''; position: absolute; left: -11.5px; top: 25px; height: 20px; width: 20px; background: #fff; border-radius: 50%; border: 3px solid #ccd0d5; }
-            .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-            .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px; }
-            .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
-            .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
-            .modal-content h2 { margin-top: 0; }
-            .modal-content pre { background-color: #f5f5f5; border: 1px solid #ddd; padding: 10px; max-height: 300px; overflow-y: auto; }
-            .resolve-button { background-color: #1877f2; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; }
-            .resolve-button:hover { background-color: #166fe5; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="main-header">
-                <div class="server-info">
-                    <span class="server-name">{{ hostname }}</span>
-                    <span class="server-ip">{{ ip_address }}</span>
-                </div>
-                <div class="status-header error-{{ overall_status == 'error' }}" id="status-header-clickable">
-                    <div class="status-light {{ overall_status }}"></div>
-                    <span class="status-text {{ overall_status }}">{{ status_text }}</span>
-                </div>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
+    <title>System Status</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; background-color: #f0f2f5; }
+        .status-box { padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .status-box h1 { margin: 0; font-size: 2.5em; }
+        .status-box p { margin: 5px 0 0; opacity: 0.9; }
+        .status-Ready { background-color: #28a745; }
+        .status-In-Use { background-color: #ffc107; color: #333;}
+        .status-Error { background-color: #dc3545; }
+        .call-history { background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .call-history h2 { margin-top: 0; }
+        .call { border-bottom: 1px solid #eee; padding: 15px 0; }
+        .call:last-child { border-bottom: none; }
+        .call-time { font-weight: bold; margin-bottom: 8px; }
+        .call-details { white-space: pre-wrap; font-family: monospace; background-color: #f8f9fa; padding: 10px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <div class="status-box status-{{ status }}">
+        <h1>{{ status }}</h1>
+        <p>{{ status_message }}</p>
+    </div>
+
+    <div class="call-history">
+        <h2>Recent Call History</h2>
+        {% for call in last_3_calls %}
+            <div class="call">
+                <div class="call-time">{{ call.timestamp }}</div>
+                <div class="call-details">{{ call.details }}</div>
             </div>
-            <div id="timeline-view">
-                <div class="timeline">
-                    {% for event in events %}
-                    <div class="event">
-                        <div class="timeline-dot"></div>
-                        <div class="event-summary">
-                            <span class="event-status-dot {{ event.status }}"></span>
-                            <span class="event-icon">{{ event.icon }}</span>
-                            <div>
-                                <div class="event-title">{{ event.title }}</div>
-                                <div class="event-time">{{ event.timestamp }}</div>
-                            </div>
-                        </div>
-                        <div class="event-details"><pre>{{ event.details }}</pre></div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <div id="errorModal" class="modal">
-          <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Detected Errors</h2>
-            <pre id="error-details"></pre>
-            <form action="/resolve_errors" method="post" style="text-align: right;">
-                <button type="submit" class="resolve-button">Mark as Resolved & Archive Log</button>
-            </form>
-          </div>
-        </div>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                document.querySelectorAll('.event-summary').forEach(summary => {
-                    summary.addEventListener('click', () => { summary.nextElementSibling.classList.toggle('show'); });
-                });
-                const modal = document.getElementById("errorModal");
-                const statusHeader = document.getElementById("status-header-clickable");
-                if (statusHeader.classList.contains('error-true')) {
-                    statusHeader.onclick = function() {
-                        document.getElementById("error-details").textContent = {{ error_lines|tojson }}.join('\n');
-                        modal.style.display = "block";
-                    }
-                }
-                document.getElementsByClassName("close")[0].onclick = function() { modal.style.display = "none"; }
-                window.onclick = function(event) { if (event.target == modal) { modal.style.display = "none"; } }
-            });
-        </script>
-    </body>
-    </html>"""
-    return render_template_string(template, events=events, hostname=hostname, ip_address=ip_address, overall_status=overall_status, status_text=status_text, error_lines=error_lines)
+        {% else %}
+            <p>No calls have been handled yet.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
+    """
+    return render_template_string(template, status=status, status_message=status_message, last_3_calls=last_3_calls)
 
 @app.route('/resolve_errors', methods=['POST'])
 def resolve_errors():

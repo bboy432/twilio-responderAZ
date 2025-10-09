@@ -15,6 +15,7 @@ services:
       - PUBLIC_URL=${PUBLIC_URL}
       - FLASK_PORT=${FLASK_PORT}
       - RECIPIENT_PHONES=${RECIPIENT_PHONES}
+      - RECIPIENT_EMAILS=${RECIPIENT_EMAILS}
     volumes:
       - twilio_logs:/app/logs
     networks:

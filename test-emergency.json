@@ -1,0 +1,7 @@
+{
+  "customer_name": "Test Customer",
+  "user_stated_callback_number": "+15551234567",
+  "incident_address": "123 Main St, Anytown, USA",
+  "emergency_description_text": "This is a test emergency from a curl command.",
+  "chosen_phone": "+13852680778"
+}
