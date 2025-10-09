@@ -258,18 +258,35 @@ def format_final_email():
     subject = f"❗EMERGENCY ALERT & CALL STATUS❗: Axiom - {target_name}"
     emergency_time = call_statuses['emergency_call']['timestamp']
     transfer_time = call_statuses['transfer_call']['timestamp']
+    # Build time strings separately to avoid nested f-string/quote issues
+    if emergency_time:
+        try:
+            emergency_time_str = emergency_time.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            emergency_time_str = str(emergency_time)
+    else:
+        emergency_time_str = ''
+
+    if transfer_time:
+        try:
+            transfer_time_str = transfer_time.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            transfer_time_str = str(transfer_time)
+    else:
+        transfer_time_str = ''
+
     body = (
-        f"EMERGENCY NOTIFICATION & CALL STATUS\n"
+        "EMERGENCY NOTIFICATION & CALL STATUS\n"
         f"Assigned To: {target_name} ({target_number})\n\n"
         f"Customer: {emergency_data.get('customer_name', 'N/A')}\n"
         f"Callback Number: {emergency_data.get('user_stated_callback_number', 'N/A')}\n"
         f"Address: {emergency_data.get('incident_address', 'N/A')}\n\n"
         f"Emergency Description:\n{emergency_data.get('emergency_description_text', 'N/A')}\n\n"
-        f"CALL STATUS\n"
+        "CALL STATUS\n"
         f"Emergency Alert Call: {call_statuses['emergency_call']['status'] or 'N/A'}\n"
-        f"{f'Time: {emergency_time.strftime('%Y-%m-%d %H')}' if emergency_time else ''}\n\n"
+        f"Time: {emergency_time_str}\n\n"
         f"Transfer Call: {call_statuses['transfer_call']['status'] or 'N/A'}\n"
-        f"{f'Time: {transfer_time.strftime('%Y-%m-%d %H:%M:%S')}' if transfer_time else ''}\n\n"
+        f"Time: {transfer_time_str}\n\n"
         f"Original Alert Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     return subject, body
