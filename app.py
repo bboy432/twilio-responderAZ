@@ -267,7 +267,7 @@ def format_final_email():
         f"Emergency Description:\n{emergency_data.get('emergency_description_text', 'N/A')}\n\n"
         f"CALL STATUS\n"
         f"Emergency Alert Call: {call_statuses['emergency_call']['status'] or 'N/A'}\n"
-        f"{f'Time: {emergency_time.strftime('%Y-%m-%d %H:%M:%S')}' if emergency_time else ''}\n\n"
+        f"{f'Time: {emergency_time.strftime('%Y-%m-%d %H')}' if emergency_time else ''}\n\n"
         f"Transfer Call: {call_statuses['transfer_call']['status'] or 'N/A'}\n"
         f"{f'Time: {transfer_time.strftime('%Y-%m-%d %H:%M:%S')}' if transfer_time else ''}\n\n"
         f"Original Alert Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
