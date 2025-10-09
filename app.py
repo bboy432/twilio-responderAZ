@@ -92,7 +92,7 @@ active_automated_call = None
 automated_call_lock = threading.Lock()
 waiting_calls = []
 waiting_calls_lock = threading.Lock()
-latest_chosen_phone = TRANSFER_TARGET_PHONE_NUMBER
+latest_chosen_phone = None # No one is on call by default
 latest_phone_lock = threading.Lock()
 emergency_data = None
 emergency_data_lock = threading.Lock()
@@ -475,7 +475,13 @@ def handle_incoming_twilio_call():
     log_request_details(request)
     call_sid = request.values.get('CallSid')
     response = VoiceResponse()
-    if is_automated_call_active():
+
+    target_number = get_current_phone()
+
+    if target_number is None:
+        response.say("There is no on-call technician currently available. Please try again later.")
+        response.hangup()
+    elif is_automated_call_active():
         add_waiting_call(call_sid)
         response.say("Please hold while we complete an emergency notification.")
         response.play("http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3", loop=1)
@@ -484,7 +490,6 @@ def handle_incoming_twilio_call():
         attempts = get_transfer_attempts(call_sid)
         if attempts < MAX_TRANSFER_ATTEMPTS:
             increment_transfer_attempts(call_sid)
-            target_number = get_current_phone()
             logging.info(f"Attempting transfer {attempts + 1} for {call_sid} to {target_number}")
             dial = Dial(timeout=20, action=f"{public_url}/transfer_status?call_sid={call_sid}", caller_id=TWILIO_TRANSFER_NUMBER)
             dial.number(target_number)
@@ -496,6 +501,7 @@ def handle_incoming_twilio_call():
             update_call_status('transfer_call', 'max-attempts-reached')
             subject, body = format_final_email()
             if subject and body: send_to_all(subject, body)
+    
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 @app.route('/transfer_status', methods=['POST'])
