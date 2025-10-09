@@ -43,9 +43,8 @@ logging.basicConfig(
     ]
 )
 
-# --- Load Configuration from JSON file ---
+# --- Load Configuration from Environment Variables ---
 try:
-    # We will place the config file in a 'config' directory inside the container
     TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
     TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
     TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
@@ -55,19 +54,14 @@ try:
     PUBLIC_URL = os.environ.get('PUBLIC_URL')
     FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
 
-except FileNotFoundError:
-    logging.critical("CRITICAL ERROR: config.json not found at '/app/config/config.json' or './config/config.json'.")
-    exit()
-except KeyError as e:
-    logging.critical(f"CRITICAL ERROR: Missing key in config.json: {e}")
-    exit()
+    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
+        raise ValueError("One or more required environment variables are missing.")
+
 except Exception as e:
-    logging.critical(f"CRITICAL ERROR: Could not load config.json: {e}")
+    logging.critical(f"CRITICAL ERROR: Could not load configuration from environment variables: {e}")
     exit()
 
 # --- General Configuration ---
-FLASK_PORT = 5000
-PUBLIC_URL = "https://tadpole-light-hugely.ngrok-free.app"
 
 # --- Contact Mapping ---
 KNOWN_CONTACTS = {
@@ -279,6 +273,7 @@ def format_final_email():
         f"Original Alert Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     return subject, body
+
 def send_sms_to_all_recipients(client, sms_message):
     recipients_str = os.environ.get('RECIPIENT_PHONES', '')
     if not recipients_str:
@@ -293,6 +288,7 @@ def send_sms_to_all_recipients(client, sms_message):
             logging.info(f"Sent alert SMS to recipient: {phone_number}")
         except Exception as e:
             logging.error(f"Failed to send SMS to {phone_number}: {e}")
+
 def make_emergency_call(message, data):
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -320,8 +316,7 @@ def status_page():
     events = parse_log_for_timeline()
     hostname, ip_address = get_network_info()
     overall_status, status_text, error_lines = get_overall_status()
-    template = """
-    <!DOCTYPE html>
+    template = """<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
@@ -429,7 +424,7 @@ def status_page():
             });
         </script>
     </body>
-    </html>
+    </html>"""
     return render_template_string(template, events=events, hostname=hostname, ip_address=ip_address, overall_status=overall_status, status_text=status_text, error_lines=error_lines)
 
 @app.route('/resolve_errors', methods=['POST'])
