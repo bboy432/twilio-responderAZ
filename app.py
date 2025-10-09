@@ -280,19 +280,19 @@ def format_final_email():
     )
     return subject, body
 def send_sms_to_all_recipients(client, sms_message):
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    RECIPIENTS_FILE = os.path.join(SCRIPT_DIR, 'recipients.txt')
-    try:
-        with open(RECIPIENTS_FILE, 'r') as f:
-            lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-            phone_lines = [line for line in lines if line.lower().startswith('phone:')]
-            for line in phone_lines:
-                phone_number = line[6:].strip()
-                try:
-                    client.messages.create(body=sms_message, from_=TWILIO_AUTOMATED_NUMBER, to=phone_number)
-                    logging.info(f"Sent alert SMS to recipient: {phone_number}")
-                except Exception as e: logging.error(f"Failed to send SMS to {phone_number}: {e}")
-    except: logging.error(f"Could not read recipients file.")
+    recipients_str = os.environ.get('RECIPIENT_PHONES', '')
+    if not recipients_str:
+        logging.warning("RECIPIENT_PHONES environment variable not set. No SMS recipients to alert.")
+        return
+
+    phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
+    
+    for phone_number in phone_numbers:
+        try:
+            client.messages.create(body=sms_message, from_=TWILIO_AUTOMATED_NUMBER, to=phone_number)
+            logging.info(f"Sent alert SMS to recipient: {phone_number}")
+        except Exception as e:
+            logging.error(f"Failed to send SMS to {phone_number}: {e}")
 def make_emergency_call(message, data):
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -420,7 +420,7 @@ def status_page():
                 const statusHeader = document.getElementById("status-header-clickable");
                 if (statusHeader.classList.contains('error-true')) {
                     statusHeader.onclick = function() {
-                        document.getElementById("error-details").textContent = {{ error_lines|tojson }}.join('\\n');
+                        document.getElementById("error-details").textContent = {{ error_lines|tojson }}.join('\n');
                         modal.style.display = "block";
                     }
                 }
@@ -430,7 +430,6 @@ def status_page():
         </script>
     </body>
     </html>
-    """
     return render_template_string(template, events=events, hostname=hostname, ip_address=ip_address, overall_status=overall_status, status_text=status_text, error_lines=error_lines)
 
 @app.route('/resolve_errors', methods=['POST'])

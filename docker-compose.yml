@@ -5,8 +5,6 @@ services:
     build: .
     container_name: twilio_responder_app
     restart: unless-stopped
-    ports:
-      - "5001:5000"
     environment:
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
@@ -16,10 +14,24 @@ services:
       - TRANSFER_TARGET_PHONE_NUMBER=${TRANSFER_TARGET_PHONE_NUMBER}
       - PUBLIC_URL=${PUBLIC_URL}
       - FLASK_PORT=${FLASK_PORT}
+      - RECIPIENT_PHONES=${RECIPIENT_PHONES}
     volumes:
       - twilio_logs:/app/logs
-      - ./recipients.txt:/app/recipients.txt:ro
+    networks:
+      - twilio-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: twilio_responder_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    depends_on:
+      - twilio-app
+    networks:
+      - twilio-net
 
 volumes:
   twilio_logs:
 
+networks:
+  twilio-net:
