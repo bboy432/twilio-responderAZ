@@ -276,7 +276,7 @@ def format_emergency_message(data):
             message_parts.append(f"The customer's name is {data['customer_name']}.")
         
         if data.get('incident_address'):
-            message_parts.append(f"The address is {add_pauses_to_number(data['incident_address'])}.")
+            message_parts.append(f"The address is {data['incident_address']}.")
 
         if data.get('user_stated_callback_number'):
             message_parts.append(f"The callback number is {add_pauses_to_number(data['user_stated_callback_number'])}.")
@@ -284,11 +284,8 @@ def format_emergency_message(data):
         if data.get('emergency_description_text'):
             message_parts.append(f"The description of the emergency is: {data['emergency_description_text']}.")
         
-        message_parts.append("This message will now repeat.")
-
         full_message = ' '.join(message_parts)
-        # Repeat the message for better comprehension
-        return f"{full_message} {full_message}"
+        return full_message
 
     except Exception as e:
         logging.error(f"Error formatting emergency message: {e}")
