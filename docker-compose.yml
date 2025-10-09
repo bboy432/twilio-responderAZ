@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  twilio-app:
+    build: .
+    container_name: twilio_responder_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - TWILIO_AUTOMATED_NUMBER=${TWILIO_AUTOMATED_NUMBER}
+      - TWILIO_TRANSFER_NUMBER=${TWILIO_TRANSFER_NUMBER}
+      - TRANSFER_TARGET_PHONE_NUMBER=${TRANSFER_TARGET_PHONE_NUMBER}
+      - PUBLIC_URL=${PUBLIC_URL}
+      - FLASK_PORT=${FLASK_PORT}
+    volumes:
+      - twilio_logs:/app/logs
+      - ./recipients.txt:/app/recipients.txt:ro
+
+volumes:
+  twilio_logs:
+
