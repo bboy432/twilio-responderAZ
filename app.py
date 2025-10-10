@@ -13,6 +13,8 @@ import csv
 import re
 import socket
 
+import uuid
+
 # It's good practice to wrap third-party library imports in a try-except block
 try:
     from twilio.rest import Client
@@ -88,22 +90,10 @@ def send_to_all(subject, body):
     logging.info("--- END OF SIMULATED EMAIL ---")
 
 # --- Global State Management ---
-active_automated_call = None
-automated_call_lock = threading.Lock()
-waiting_calls = []
-waiting_calls_lock = threading.Lock()
-latest_chosen_phone = None # No one is on call by default
-latest_phone_lock = threading.Lock()
-emergency_data = None
-emergency_data_lock = threading.Lock()
-call_statuses = {
-    'emergency_call': {'status': 'N/A', 'timestamp': None},
-    'transfer_call': {'status': 'N/A', 'timestamp': None}
-}
-call_status_lock = threading.Lock()
-transfer_attempts = {}
-transfer_attempts_lock = threading.Lock()
-MAX_TRANSFER_ATTEMPTS = 2
+# This dictionary will hold the state of the single, active emergency.
+# It is keyed by a unique emergency_id.
+active_emergency = {}
+active_emergency_lock = threading.Lock()
 
 
 # --- Log Parsing and Status Functions ---
@@ -118,7 +108,10 @@ def get_network_info():
         return "Unknown Host", "Unknown IP"
 
 def get_simple_status():
-    """Determines the simple status: Ready or Error."""
+    """Determines the simple status: Ready, In Use, or Error."""
+    if get_active_emergency():
+        return "In Use", "An emergency call is being processed."
+
     try:
         with open(LOG_PATH, "r") as f:
             for line in f:
@@ -194,56 +187,29 @@ def parse_log_for_timeline():
 
 
 # --- Emergency Logic Functions ---
-def set_automated_call_active(call_sid):
-    global active_automated_call
-    with automated_call_lock:
-        active_automated_call = call_sid
+def get_active_emergency():
+    """Safely gets the active emergency data."""
+    with active_emergency_lock:
+        return active_emergency.copy()
 
-def clear_automated_call():
-    global active_automated_call
-    with automated_call_lock:
-        active_automated_call = None
+def set_active_emergency(data):
+    """Safely sets the active emergency data."""
+    with active_emergency_lock:
+        global active_emergency
+        active_emergency = data
 
-def is_automated_call_active():
-    with automated_call_lock:
-        return active_automated_call is not None
+def update_active_emergency(key, value):
+    """Safely updates a specific key in the active emergency data."""
+    with active_emergency_lock:
+        if active_emergency:
+            active_emergency[key] = value
 
-def add_waiting_call(call_sid):
-    with waiting_calls_lock:
-        if call_sid not in waiting_calls:
-            waiting_calls.append(call_sid)
+def clear_active_emergency():
+    """Safely clears the active emergency data."""
+    with active_emergency_lock:
+        global active_emergency
+        active_emergency = {}
 
-def get_next_waiting_call():
-    with waiting_calls_lock:
-        return waiting_calls.pop(0) if waiting_calls else None
-
-def update_chosen_phone(number):
-    global latest_chosen_phone
-    with latest_phone_lock:
-        latest_chosen_phone = number
-
-def get_current_phone():
-    with latest_phone_lock:
-        return latest_chosen_phone
-
-def store_emergency_data(data):
-    global emergency_data
-    with emergency_data_lock:
-        emergency_data = data
-
-def update_call_status(call_type, status):
-    with call_status_lock:
-        call_statuses[call_type]['status'] = status
-        call_statuses[call_type]['timestamp'] = datetime.now()
-
-def get_transfer_attempts(call_sid):
-    with transfer_attempts_lock:
-        return transfer_attempts.get(call_sid, 0)
-
-def increment_transfer_attempts(call_sid):
-    with transfer_attempts_lock:
-        transfer_attempts[call_sid] = transfer_attempts.get(call_sid, 0) + 1
-    return transfer_attempts[call_sid]
 
 def log_request_details(req):
     try:
@@ -262,25 +228,25 @@ def add_pauses_to_number(text):
     """Adds periods between characters to create pauses for TTS."""
     return '. '.join(list(text)) + '.'
 
-def format_emergency_message(data):
+def format_emergency_message(emergency_data):
     """Creates the detailed voice message for the emergency call."""
     try:
-        target_number = get_current_phone()
-        target_name = KNOWN_CONTACTS.get(target_number, "maintenance team")
+        technician_number = emergency_data.get('technician_number')
+        target_name = KNOWN_CONTACTS.get(technician_number, "maintenance team")
         
         message_parts = [f"This is an emergency call from Axiom Property Management for {target_name}."]
 
-        if data.get('customer_name'):
-            message_parts.append(f"The customer's name is {data['customer_name']}.")
+        if emergency_data.get('customer_name'):
+            message_parts.append(f"The customer's name is {emergency_data['customer_name']}.")
         
-        if data.get('incident_address'):
-            message_parts.append(f"The address is {data['incident_address']}.")
+        if emergency_data.get('incident_address'):
+            message_parts.append(f"The address is {emergency_data['incident_address']}.")
 
-        if data.get('user_stated_callback_number'):
-            message_parts.append(f"The callback number is {add_pauses_to_number(data['user_stated_callback_number'])}.")
+        if emergency_data.get('user_stated_callback_number'):
+            message_parts.append(f"The callback number is {add_pauses_to_number(emergency_data['user_stated_callback_number'])}.")
 
-        if data.get('emergency_description_text'):
-            message_parts.append(f"The description of the emergency is: {data['emergency_description_text']}.")
+        if emergency_data.get('emergency_description_text'):
+            message_parts.append(f"The description of the emergency is: {emergency_data['emergency_description_text']}.")
         
         message_parts.append("This information will also be available in a text message.")
 
@@ -291,56 +257,35 @@ def format_emergency_message(data):
         logging.error(f"Error formatting emergency message: {e}")
         return "Emergency notification. Critical data was missing or an error occurred."
 
-def format_emergency_sms(data):
+def format_emergency_sms(emergency_data):
     try:
-        target_number = get_current_phone()
-        target_name = KNOWN_CONTACTS.get(target_number, "Maintenance Team")
+        technician_number = emergency_data.get('technician_number')
+        target_name = KNOWN_CONTACTS.get(technician_number, "Maintenance Team")
         return (
             f"❗Emergency Alert❗ from Axiom Property Management\nTo: {target_name}\n\n"
-            f"Customer: {data.get('customer_name', 'N/A')}\nCallback: {data.get('user_stated_callback_number', 'N/A')}\n"
-            f"Address: {data.get('incident_address', 'N/A')}\n\nEmergency Details:\n{data.get('emergency_description_text', 'N/A')}"
+            f"Customer: {emergency_data.get('customer_name', 'N/A')}\nCallback: {emergency_data.get('user_stated_callback_number', 'N/A')}\n"
+            f"Address: {emergency_data.get('incident_address', 'N/A')}\n\nEmergency Details:\n{emergency_data.get('emergency_description_text', 'N/A')}"
         )
     except KeyError as e:
         logging.error(f"Missing field for SMS: {e}")
         return "Emergency Alert - Details unavailable"
 
-def format_final_email():
+def format_final_email(emergency_data):
     if not emergency_data: return None, None
-    target_number = get_current_phone()
-    target_name = KNOWN_CONTACTS.get(target_number, "Maintenance Team")
+    technician_number = emergency_data.get('technician_number')
+    target_name = KNOWN_CONTACTS.get(technician_number, "Maintenance Team")
     subject = f"❗EMERGENCY ALERT & CALL STATUS❗: Axiom - {target_name}"
-    emergency_time = call_statuses['emergency_call']['timestamp']
-    transfer_time = call_statuses['transfer_call']['timestamp']
-    # Build time strings safely
-    if emergency_time:
-        try:
-            emergency_time_str = emergency_time.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception:
-            emergency_time_str = str(emergency_time)
-    else:
-        emergency_time_str = ''
-
-    if transfer_time:
-        try:
-            transfer_time_str = transfer_time.strftime('%Y-%m-%d %H:%M:%S')
-        except Exception:
-            transfer_time_str = str(transfer_time)
-    else:
-        transfer_time_str = ''
-
+    
     body = (
         "EMERGENCY NOTIFICATION & CALL STATUS\n"
-        f"Assigned To: {target_name} ({target_number})\n\n"
+        f"Assigned To: {target_name} ({technician_number})\n\n"
         f"Customer: {emergency_data.get('customer_name', 'N/A')}\n"
         f"Callback Number: {emergency_data.get('user_stated_callback_number', 'N/A')}\n"
         f"Address: {emergency_data.get('incident_address', 'N/A')}\n\n"
         f"Emergency Description:\n{emergency_data.get('emergency_description_text', 'N/A')}\n\n"
-        "CALL STATUS\n"
-        f"Emergency Alert Call: {call_statuses['emergency_call']['status'] or 'N/A'}\n"
-        f"Time: {emergency_time_str}\n\n"
-        f"Transfer Call: {call_statuses['transfer_call']['status'] or 'N/A'}\n"
-        f"Time: {transfer_time_str}\n\n"
-        f"Original Alert Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"Call Status: {emergency_data.get('conference_status', 'N/A')}\n"
+        f"Call Duration: {emergency_data.get('conference_duration', 'N/A')} seconds\n\n"
+        f"Original Alert Time: {emergency_data.get('timestamp', datetime.now()).strftime('%Y-%m-%d %H:%M:%S')}"
     )
     return subject, body
 
@@ -359,25 +304,34 @@ def send_sms_to_all_recipients(client, sms_message):
         except Exception as e:
             logging.error(f"Failed to send SMS to {phone_number}: {e}")
 
-def make_emergency_call(message, data):
+def make_emergency_call(emergency_id, emergency_data):
+    """Initiates the detailed call to the technician."""
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        target_number = get_current_phone()
-        sms_text = format_emergency_sms(data)
-        client.messages.create(body=sms_text, from_=TWILIO_AUTOMATED_NUMBER, to=target_number)
-        logging.info(f"Emergency SMS sent to primary target {target_number}")
+        technician_number = emergency_data.get('technician_number')
+        
+        # Send SMS
+        sms_text = format_emergency_sms(emergency_data)
+        client.messages.create(body=sms_text, from_=TWILIO_AUTOMATED_NUMBER, to=technician_number)
+        logging.info(f"Emergency SMS sent to primary target {technician_number}")
         send_sms_to_all_recipients(client, sms_text)
+
+        # Make call
+        message = format_emergency_message(emergency_data)
         call = client.calls.create(
             twiml=f'<Response><Pause length="2"/><Say>{message}</Say><Hangup /></Response>',
-            to=target_number, from_=TWILIO_AUTOMATED_NUMBER,
-            status_callback=f"{public_url}/call_status", status_callback_event=['completed']
+            to=technician_number, from_=TWILIO_AUTOMATED_NUMBER,
+            status_callback=f"{public_url}/technician_call_ended?emergency_id={emergency_id}",
+            status_callback_event=['completed']
         )
-        set_automated_call_active(call.sid)
-        logging.info(f"Emergency call initiated to {target_number}! Call SID: {call.sid}")
+        
+        logging.info(f"Emergency call initiated to {technician_number}! Call SID: {call.sid}")
+        update_active_emergency('technician_call_sid', call.sid)
         return True
     except Exception as e:
         logging.error(f"Error in emergency notification: {e}")
         return False
+
 
 
 # --- Flask Routes ---
@@ -450,18 +404,42 @@ def resolve_errors():
 
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
+    """Starts the emergency workflow."""
     logging.info("\n--- NEW WEBHOOK RECEIVED ---\n")
     log_request_details(request)
+
+    if get_active_emergency():
+        logging.error("Webhook received while an emergency is already active.")
+        return jsonify({"status": "error", "message": "System is busy."}), 503
+
     try:
         data = request.get_json()
-        store_emergency_data(data)
-        if 'chosen_phone' in data: update_chosen_phone(data['chosen_phone'])
-        message = format_emergency_message(data)
-        if message: make_emergency_call(message, data)
+        emergency_id = str(uuid.uuid4())
+        
+        emergency_data = {
+            "id": emergency_id,
+            "timestamp": datetime.now(),
+            "status": "informing_technician",
+            "technician_number": data.get('chosen_phone'),
+            "customer_name": data.get('customer_name'),
+            "user_stated_callback_number": data.get('user_stated_callback_number'),
+            "incident_address": data.get('incident_address'),
+            "emergency_description_text": data.get('emergency_description_text'),
+            "customer_call_sid": None,
+            "technician_call_sid": None,
+            "conference_status": None,
+            "conference_duration": None
+        }
+        set_active_emergency(emergency_data)
+
+        make_emergency_call(emergency_id, emergency_data)
+        
         return jsonify({"status": "success"}), 200
+
     except Exception as e:
         logging.error(f"Webhook error: {e}", exc_info=True)
         return jsonify({"status": "error"}), 500
+
 
 @app.route('/sms_reply', methods=['POST'])
 def sms_reply():
@@ -476,79 +454,101 @@ def sms_reply():
 
 @app.route("/incoming_twilio_call", methods=['POST'])
 def handle_incoming_twilio_call():
+    """Handles the incoming call from the customer."""
     logging.info("\n--- INCOMING TWILIO CALL ---\n")
     log_request_details(request)
-    call_sid = request.values.get('CallSid')
     response = VoiceResponse()
+    emergency = get_active_emergency()
 
-    target_number = get_current_phone()
-
-    if target_number is None:
-        response.say("There is no on-call technician currently available. Please try again later.")
+    if not emergency:
+        response.say("There is no active emergency. Please hang up.")
         response.hangup()
-    elif is_automated_call_active():
-        add_waiting_call(call_sid)
-        response.say("Please hold while we complete an emergency notification.")
-        response.play("http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3", loop=1)
-        response.redirect(url=f"{public_url}/incoming_twilio_call", method='POST')
-    else:
-        attempts = get_transfer_attempts(call_sid)
-        if attempts < MAX_TRANSFER_ATTEMPTS:
-            increment_transfer_attempts(call_sid)
-            logging.info(f"Attempting transfer {attempts + 1} for {call_sid} to {target_number}")
-            dial = Dial(timeout=20, action=f"{public_url}/transfer_status?call_sid={call_sid}", caller_id=TWILIO_TRANSFER_NUMBER)
-            dial.number(target_number)
-            response.append(dial)
-        else:
-            logging.warning(f"Max transfer attempts reached for {call_sid}.")
-            response.say("We were unable to reach the maintenance team.")
-            response.hangup()
-            update_call_status('transfer_call', 'max-attempts-reached')
-            subject, body = format_final_email()
-            if subject and body: send_to_all(subject, body)
-    
+        return str(response), 200, {'Content-Type': 'application/xml'}
+
+    emergency_id = emergency.get('id')
+    update_active_emergency('status', 'customer_waiting')
+    update_active_emergency('customer_call_sid', request.values.get('CallSid'))
+
+    response.say("An emergency has been reported. Please hold while we connect you to the on-call technician.")
+    dial = Dial()
+    dial.conference(
+        emergency_id,
+        wait_url='http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+        status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
+        status_callback_event='end'
+    )
+    response.append(dial)
+
+    # If technician has already been informed, connect them now
+    if emergency.get('status') == 'technician_informed':
+        connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
+
     return str(response), 200, {'Content-Type': 'application/xml'}
 
-@app.route('/transfer_status', methods=['POST'])
-def transfer_status():
-    logging.info("\n--- TRANSFER STATUS UPDATE ---\n")
-    log_request_details(request)
-    status = request.values.get('DialCallStatus')
-    call_sid = request.args.get('call_sid')
-    update_call_status('transfer_call', status)
-    response = VoiceResponse()
-    if status == 'completed':
-        logging.info(f"Transfer call {call_sid} completed successfully.")
-        response.hangup()
-    else:
-        logging.warning(f"Transfer for {call_sid} not successful (Status: {status}). Retrying.")
-        response.redirect(url=f"{public_url}/incoming_twilio_call", method='POST')
-    if status == 'completed' or get_transfer_attempts(call_sid) >= MAX_TRANSFER_ATTEMPTS:
-        subject, body = format_final_email()
-        if subject and body:
-            send_to_all(subject, body)
-            logging.info("Final status email triggered.")
-    return str(response), 200, {'Content-Type': 'application/xml'}
 
-@app.route('/call_status', methods=['POST'])
-def call_status():
-    logging.info("\n--- AUTOMATED CALL STATUS UPDATE ---\n")
+@app.route("/technician_call_ended", methods=['POST'])
+def technician_call_ended():
+    """Callback for when the initial technician call ends."""
+    logging.info("\n--- TECHNICIAN CALL ENDED ---\n")
     log_request_details(request)
-    call_sid = request.form.get('CallSid')
-    status = request.form.get('CallStatus')
-    if active_automated_call == call_sid and status == 'completed':
-        update_call_status('emergency_call', status)
-        logging.info(f"Automated alert call {call_sid} completed.")
-        clear_automated_call()
-        try:
-            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            while True:
-                waiting_call_sid = get_next_waiting_call()
-                if not waiting_call_sid: break
-                logging.info(f"Processing waiting call {waiting_call_sid}.")
-                client.calls(waiting_call_sid).update(url=f"{public_url}/incoming_twilio_call", method='POST')
-        except Exception as e:
-            logging.error(f"Error processing waiting calls: {e}", exc_info=True)
+    emergency_id = request.args.get('emergency_id')
+    emergency = get_active_emergency()
+
+    if not emergency or emergency.get('id') != emergency_id:
+        logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
+        return '', 200
+
+    update_active_emergency('status', 'technician_informed')
+
+    # If customer is already waiting, connect the technician
+    if emergency.get('status') == 'customer_waiting':
+        connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
+
+    return '', 200
+
+
+def connect_technician_to_conference(emergency_id, technician_number):
+    """Makes a new call to the technician and puts them in the conference."""
+    try:
+        logging.info(f"Connecting technician {technician_number} to conference {emergency_id}")
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        
+        conference_twiml = f'<Response><Dial><Conference>{emergency_id}</Conference></Dial></Response>'
+        
+        client.calls.create(
+            twiml=conference_twiml,
+            to=technician_number,
+            from_=TWILIO_AUTOMATED_NUMBER
+        )
+    except Exception as e:
+        logging.error(f"Failed to connect technician to conference: {e}")
+
+
+@app.route("/conference_status", methods=['POST'])
+def conference_status():
+    """Callback for when the conference ends."""
+    logging.info("\n--- CONFERENCE STATUS UPDATE ---\n")
+    log_request_details(request)
+    emergency_id = request.args.get('emergency_id')
+    emergency = get_active_emergency()
+
+    if not emergency or emergency.get('id') != emergency_id:
+        logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
+        return '', 200
+
+    update_active_emergency('conference_status', request.values.get('StatusCallbackEvent'))
+    update_active_emergency('conference_duration', request.values.get('Duration'))
+
+    # Send final email
+    subject, body = format_final_email(get_active_emergency())
+    if subject and body:
+        send_to_all(subject, body)
+        logging.info("Final status email triggered.")
+
+    # Clean up
+    clear_active_emergency()
+    logging.info(f"Emergency {emergency_id} concluded and cleaned up.")
+
     return '', 200
 
 if __name__ == '__main__':
