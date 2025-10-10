@@ -118,10 +118,7 @@ def get_network_info():
         return "Unknown Host", "Unknown IP"
 
 def get_simple_status():
-    """Determines the simple status: Ready, In Use, or Error."""
-    if is_automated_call_active():
-        return "In Use", "An emergency call is being processed."
-
+    """Determines the simple status: Ready or Error."""
     try:
         with open(LOG_PATH, "r") as f:
             for line in f:
@@ -135,8 +132,7 @@ def get_simple_status():
     except FileNotFoundError:
         return "Ready", "System is online and waiting for calls."
     except Exception:
-        return "Error", "Could not read log file to determine status."
-
+        return "Error", "Could not read log file to determine status." 
 def get_last_n_calls(n=3):
     """Parses the log file to get the last N handled calls."""
     all_events = parse_log_for_timeline()
@@ -284,6 +280,8 @@ def format_emergency_message(data):
         if data.get('emergency_description_text'):
             message_parts.append(f"The description of the emergency is: {data['emergency_description_text']}.")
         
+        message_parts.append("This information will also be available in a text message.")
+
         full_message = ' '.join(message_parts)
         return full_message
 
@@ -430,6 +428,11 @@ def status_page():
 </html>
     """
     return render_template_string(template, status=status, status_message=status_message, last_3_calls=last_3_calls)
+
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    status, status_message = get_simple_status()
+    return jsonify({"status": status, "message": status_message})
 
 @app.route('/resolve_errors', methods=['POST'])
 def resolve_errors():
