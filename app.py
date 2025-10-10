@@ -249,6 +249,8 @@ def log_request_details(req):
     try:
         log_message = f"Request Details: {req.method} {req.url}\n"
         log_message += f"From: {req.remote_addr}\nHeaders: {dict(req.headers)}\n"
+        if req.is_json:
+            log_message += f"JSON Data: {req.get_json()}\n"
         log_message += f"Form Data: {dict(req.form)}\nQuery Params: {dict(req.args)}"
         logging.info(log_message)
     except Exception as e:
