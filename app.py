@@ -474,28 +474,13 @@ def handle_incoming_twilio_call():
         return str(response), 200, {'Content-Type': 'application/xml'}
 
     emergency_id = emergency.get('id')
-    
-    # Start the conference immediately for the technician
-    if not emergency.get('conference_started'):
-        update_active_emergency('conference_started', True)
-        # Initiate the conference call to the technician first
-        try:
-            connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
-            logging.info("Initiated conference and called technician first")
-        except Exception as e:
-            logging.error(f"Failed to initiate technician conference call: {e}")
-            response.say("We're sorry, but we couldn't connect to the technician. Please try again.")
-            response.hangup()
-            return str(response), 200, {'Content-Type': 'application/xml'}
-    
-    # Update customer status
     update_active_emergency('status', 'customer_waiting')
     update_active_emergency('customer_call_sid', request.values.get('CallSid'))
 
     try:
-        response.say("Please hold while we connect you to the technician.")
+        response.say("An emergency has been reported. Please hold while we connect you to the on-call technician.")
         
-        # Add initial pause and hold music while we wait for tech
+        # Add hold music while we wait
         response.play("http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
         
         dial = Dial()
@@ -507,19 +492,14 @@ def handle_incoming_twilio_call():
             response.hangup()
             return str(response), 200, {'Content-Type': 'application/xml'}
             
-        # Configure conference with robust settings and beep on entry/exit to know when tech joins
+        # Configure conference with essential settings
         dial.conference(
             emergency_id,
             wait_url='http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
             status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
-            status_callback_event=['join', 'leave', 'end', 'start'],
-            end_conference_on_exit=True,
-            max_participants=2,
-            record='record-from-start',
-            time_limit=3600,  # 1 hour maximum
-            beep=True,  # Play beep when participants join/leave
-            start_conference_on_enter=True,  # Start when first person joins
-            end_conference_on_exit=True  # End when either party leaves
+            status_callback_event=['join', 'leave', 'end'],
+            beep=True,  # So we can hear when people join
+            max_participants=2
         )
         response.append(dial)
         logging.info(f"Conference configured successfully. Emergency ID: {emergency_id}")
@@ -583,15 +563,15 @@ def connect_technician_to_conference(emergency_id, technician_number):
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         logging.info("Successfully created Twilio client for conference connection")
         
-        conference_twiml = f'<Response><Dial><Conference statusCallbackEvent="join leave">{emergency_id}</Conference></Dial></Response>'
+        # First announce to the technician they're joining a conference
+        message = "You are being connected to an emergency conference call."
+        conference_twiml = f'<Response><Say>{message}</Say><Dial><Conference>{emergency_id}</Conference></Dial></Response>'
         logging.info(f"Generated conference TwiML: {conference_twiml}")
         
         call = client.calls.create(
             twiml=conference_twiml,
             to=technician_number,
-            from_=TWILIO_AUTOMATED_NUMBER,
-            status_callback=f"{public_url}/conference_participant_status?emergency_id={emergency_id}",
-            status_callback_event=['initiated', 'ringing', 'answered', 'completed']
+            from_=TWILIO_AUTOMATED_NUMBER
         )
         logging.info(f"Initiated technician conference call. Call SID: {call.sid}")
         return True
