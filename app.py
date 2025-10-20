@@ -474,11 +474,30 @@ def handle_incoming_twilio_call():
         return str(response), 200, {'Content-Type': 'application/xml'}
 
     emergency_id = emergency.get('id')
+    
+    # Start the conference immediately for the technician
+    if not emergency.get('conference_started'):
+        update_active_emergency('conference_started', True)
+        # Initiate the conference call to the technician first
+        try:
+            connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
+            logging.info("Initiated conference and called technician first")
+        except Exception as e:
+            logging.error(f"Failed to initiate technician conference call: {e}")
+            response.say("We're sorry, but we couldn't connect to the technician. Please try again.")
+            response.hangup()
+            return str(response), 200, {'Content-Type': 'application/xml'}
+    
+    # Update customer status
     update_active_emergency('status', 'customer_waiting')
     update_active_emergency('customer_call_sid', request.values.get('CallSid'))
 
     try:
-        response.say("An emergency has been reported. Please hold while we connect you to the on-call technician.")
+        response.say("Please hold while we connect you to the technician.")
+        
+        # Add initial pause and hold music while we wait for tech
+        response.play("http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
+        
         dial = Dial()
         
         # Validate public URL
@@ -488,7 +507,7 @@ def handle_incoming_twilio_call():
             response.hangup()
             return str(response), 200, {'Content-Type': 'application/xml'}
             
-        # Configure conference with more robust settings
+        # Configure conference with robust settings and beep on entry/exit to know when tech joins
         dial.conference(
             emergency_id,
             wait_url='http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
@@ -497,7 +516,10 @@ def handle_incoming_twilio_call():
             end_conference_on_exit=True,
             max_participants=2,
             record='record-from-start',
-            time_limit=3600  # 1 hour maximum
+            time_limit=3600,  # 1 hour maximum
+            beep=True,  # Play beep when participants join/leave
+            start_conference_on_enter=True,  # Start when first person joins
+            end_conference_on_exit=True  # End when either party leaves
         )
         response.append(dial)
         logging.info(f"Conference configured successfully. Emergency ID: {emergency_id}")
