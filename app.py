@@ -499,7 +499,10 @@ def handle_incoming_twilio_call():
             status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
             status_callback_event=['join', 'leave', 'end'],
             beep=True,  # So we can hear when people join
-            max_participants=2
+            max_participants=2,
+            start_conference_on_enter=True,
+            end_conference_on_exit=True,
+            wait_method='GET'
         )
         response.append(dial)
         logging.info(f"Conference configured successfully. Emergency ID: {emergency_id}")
@@ -565,7 +568,20 @@ def connect_technician_to_conference(emergency_id, technician_number):
         
         # First announce to the technician they're joining a conference
         message = "You are being connected to an emergency conference call."
-        conference_twiml = f'<Response><Say>{message}</Say><Dial><Conference>{emergency_id}</Conference></Dial></Response>'
+        conference_twiml = f'''
+        <Response>
+            <Say>{message}</Say>
+            <Dial>
+                <Conference
+                    waitUrl="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3"
+                    startConferenceOnEnter="true"
+                    endConferenceOnExit="true"
+                    maxParticipants="2"
+                    beep="true"
+                >{emergency_id}</Conference>
+            </Dial>
+        </Response>
+        '''
         logging.info(f"Generated conference TwiML: {conference_twiml}")
         
         call = client.calls.create(
