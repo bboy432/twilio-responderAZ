@@ -306,9 +306,11 @@ def send_sms_to_all_recipients(client, sms_message):
 
 def make_emergency_call(emergency_id, emergency_data):
     """Initiates the detailed call to the technician."""
+    logging.info(f"\n--- INITIATING EMERGENCY CALL ---\nEmergency ID: {emergency_id}\nData: {json.dumps(emergency_data, default=str, indent=2)}")
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         technician_number = emergency_data.get('technician_number')
+        logging.info(f"Creating Twilio client for emergency call to: {technician_number}")
         
         # Send SMS
         sms_text = format_emergency_sms(emergency_data)
@@ -407,9 +409,11 @@ def webhook_listener():
     """Starts the emergency workflow."""
     logging.info("\n--- NEW WEBHOOK RECEIVED ---\n")
     log_request_details(request)
-
+    
+    logging.info("Checking system state before processing webhook...")
     if get_active_emergency():
-        logging.error("Webhook received while an emergency is already active.")
+        current_emergency = get_active_emergency()
+        logging.error(f"Webhook received while emergency is active:\nActive Emergency ID: {current_emergency.get('id')}\nStatus: {current_emergency.get('status')}\nTimestamp: {current_emergency.get('timestamp')}")
         return jsonify({"status": "error", "message": "System is busy."}), 503
 
     try:
@@ -457,8 +461,12 @@ def handle_incoming_twilio_call():
     """Handles the incoming call from the customer."""
     logging.info("\n--- INCOMING TWILIO CALL ---\n")
     log_request_details(request)
+    
+    logging.info(f"Call Details:\nFrom: {request.values.get('From')}\nTo: {request.values.get('To')}\nCallSID: {request.values.get('CallSid')}\nCall Status: {request.values.get('CallStatus')}")
+    
     response = VoiceResponse()
     emergency = get_active_emergency()
+    logging.info(f"Current Emergency State: {json.dumps(emergency, default=str, indent=2)}")
 
     if not emergency:
         response.say("There is no active emergency. Please hang up.")
@@ -483,6 +491,7 @@ def handle_incoming_twilio_call():
     if emergency.get('status') == 'technician_informed':
         connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
 
+    logging.info(f"DEBUG: Generated TwiML for incoming call: {str(response)}")
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 
@@ -491,8 +500,12 @@ def technician_call_ended():
     """Callback for when the initial technician call ends."""
     logging.info("\n--- TECHNICIAN CALL ENDED ---\n")
     log_request_details(request)
+    
     emergency_id = request.args.get('emergency_id')
+    logging.info(f"Technician Call Details:\nEmergency ID: {emergency_id}\nCall SID: {request.values.get('CallSid')}\nCall Status: {request.values.get('CallStatus')}\nCall Duration: {request.values.get('CallDuration')} seconds\nCall Price: {request.values.get('Price')}")
+    
     emergency = get_active_emergency()
+    logging.info(f"Current Emergency State:\n{json.dumps(emergency, default=str, indent=2)}")
 
     if not emergency or emergency.get('id') != emergency_id:
         logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
@@ -510,8 +523,9 @@ def technician_call_ended():
 def connect_technician_to_conference(emergency_id, technician_number):
     """Makes a new call to the technician and puts them in the conference."""
     try:
-        logging.info(f"Connecting technician {technician_number} to conference {emergency_id}")
+        logging.info(f"\n--- CONNECTING TECHNICIAN TO CONFERENCE ---\nEmergency ID: {emergency_id}\nTechnician: {technician_number}\nKnown Contact: {KNOWN_CONTACTS.get(technician_number, 'Unknown')}")
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        logging.info("Successfully created Twilio client for conference connection")
         
         conference_twiml = f'<Response><Dial><Conference>{emergency_id}</Conference></Dial></Response>'
         
@@ -529,8 +543,12 @@ def conference_status():
     """Callback for when the conference ends."""
     logging.info("\n--- CONFERENCE STATUS UPDATE ---\n")
     log_request_details(request)
+    
     emergency_id = request.args.get('emergency_id')
+    logging.info(f"Conference Details:\nEmergency ID: {emergency_id}\nStatus Event: {request.values.get('StatusCallbackEvent')}\nConference SID: {request.values.get('ConferenceSid')}\nDuration: {request.values.get('Duration')} seconds\nParticipant Count: {request.values.get('ParticipantCount')}")
+    
     emergency = get_active_emergency()
+    logging.info(f"Current Emergency State:\n{json.dumps(emergency, default=str, indent=2)}")
 
     if not emergency or emergency.get('id') != emergency_id:
         logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
