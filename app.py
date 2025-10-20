@@ -478,43 +478,22 @@ def handle_incoming_twilio_call():
     update_active_emergency('customer_call_sid', request.values.get('CallSid'))
 
     try:
-        response.say("An emergency has been reported. Please hold while we connect you to the on-call technician.")
+        response.say("Please hold while we connect you to the emergency technician.")
         
-        # Add hold music while we wait
-        response.play("http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
+        # Put the customer in a queue with hold music
+        enqueueTwiml = response.enqueue(emergency_id)
+        enqueueTwiml.wait_url = "http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3"
         
-        dial = Dial()
+        logging.info(f"Customer placed in queue: {emergency_id}")
         
-        # Validate public URL
-        if not public_url or public_url.startswith(('http://localhost', 'http://127.0.0.1')):
-            logging.error(f"Invalid public URL configured: {public_url}")
-            response.say("We're sorry, but there was a configuration error. Please try again later.")
-            response.hangup()
-            return str(response), 200, {'Content-Type': 'application/xml'}
+        # If technician is ready, connect them right away
+        if emergency.get('status') == 'technician_informed':
+            connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
             
-        # Configure conference with essential settings
-        dial.conference(
-            emergency_id,
-            wait_url='http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
-            status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
-            status_callback_event=['join', 'leave', 'end'],
-            beep=True,  # So we can hear when people join
-            max_participants=2,
-            start_conference_on_enter=True,
-            end_conference_on_exit=True,
-            wait_method='GET'
-        )
-        response.append(dial)
-        logging.info(f"Conference configured successfully. Emergency ID: {emergency_id}")
-        
     except Exception as e:
-        logging.error(f"Error setting up conference: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
-        response.say("We apologize, but there was an error setting up the conference. Please try again.")
+        logging.error(f"Error setting up call queue: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
+        response.say("We apologize, but there was an error connecting your call. Please try again.")
         response.hangup()
-
-    # If technician has already been informed, connect them now
-    if emergency.get('status') == 'technician_informed':
-        connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
 
     logging.info(f"DEBUG: Generated TwiML for incoming call: {str(response)}")
     return str(response), 200, {'Content-Type': 'application/xml'}
@@ -545,15 +524,15 @@ def technician_call_ended():
 
     # If a customer was waiting, connect the technician now.
     if customer_is_waiting:
-        connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
+        connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
 
     return '', 200
 
 
-def connect_technician_to_conference(emergency_id, technician_number):
-    """Makes a new call to the technician and puts them in the conference."""
+def connect_technician_to_customer(emergency_id, technician_number):
+    """Makes a new call to the technician and connects them to the waiting customer."""
     try:
-        logging.info(f"\n--- CONNECTING TECHNICIAN TO CONFERENCE ---\nEmergency ID: {emergency_id}\nTechnician: {technician_number}\nKnown Contact: {KNOWN_CONTACTS.get(technician_number, 'Unknown')}")
+        logging.info(f"\n--- CONNECTING TECHNICIAN TO CUSTOMER ---\nEmergency ID: {emergency_id}\nTechnician: {technician_number}\nKnown Contact: {KNOWN_CONTACTS.get(technician_number, 'Unknown')}")
         
         # Validate configuration
         if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_AUTOMATED_NUMBER]):
@@ -564,31 +543,36 @@ def connect_technician_to_conference(emergency_id, technician_number):
             raise ValueError(f"Invalid technician number format: {technician_number}")
             
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        logging.info("Successfully created Twilio client for conference connection")
+        logging.info("Successfully created Twilio client for customer connection")
         
-        # First announce to the technician they're joining a conference
-        message = "You are being connected to an emergency conference call."
-        conference_twiml = f'''
+        # Create TwiML to connect technician to the queue
+        dequeue_twiml = f'''
         <Response>
-            <Say>{message}</Say>
+            <Say>You are being connected to a customer with an emergency.</Say>
             <Dial>
-                <Conference
-                    waitUrl="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3"
-                    startConferenceOnEnter="true"
-                    endConferenceOnExit="true"
-                    maxParticipants="2"
-                    beep="true"
-                >{emergency_id}</Conference>
+                <Queue>{emergency_id}</Queue>
             </Dial>
         </Response>
         '''
-        logging.info(f"Generated conference TwiML: {conference_twiml}")
+        logging.info(f"Generated dequeue TwiML: {dequeue_twiml}")
         
+        # Make the call to the technician
         call = client.calls.create(
-            twiml=conference_twiml,
+            twiml=dequeue_twiml,
             to=technician_number,
-            from_=TWILIO_AUTOMATED_NUMBER
+            from_=TWILIO_AUTOMATED_NUMBER,
+            status_callback=f"{public_url}/call_status?emergency_id={emergency_id}",
+            status_callback_event=['completed']
         )
+        logging.info(f"Initiated technician call. Call SID: {call.sid}")
+        return True
+        
+    except ValueError as ve:
+        logging.error(f"Configuration error in call connection: {ve}")
+        return False
+    except Exception as e:
+        logging.error(f"Failed to connect technician to customer: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
+        return False
         logging.info(f"Initiated technician conference call. Call SID: {call.sid}")
         return True
         
