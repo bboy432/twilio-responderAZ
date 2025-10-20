@@ -477,15 +477,35 @@ def handle_incoming_twilio_call():
     update_active_emergency('status', 'customer_waiting')
     update_active_emergency('customer_call_sid', request.values.get('CallSid'))
 
-    response.say("An emergency has been reported. Please hold while we connect you to the on-call technician.")
-    dial = Dial()
-    dial.conference(
-        emergency_id,
-        wait_url='http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
-        status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
-        status_callback_event='end'
-    )
-    response.append(dial)
+    try:
+        response.say("An emergency has been reported. Please hold while we connect you to the on-call technician.")
+        dial = Dial()
+        
+        # Validate public URL
+        if not public_url or public_url.startswith(('http://localhost', 'http://127.0.0.1')):
+            logging.error(f"Invalid public URL configured: {public_url}")
+            response.say("We're sorry, but there was a configuration error. Please try again later.")
+            response.hangup()
+            return str(response), 200, {'Content-Type': 'application/xml'}
+            
+        # Configure conference with more robust settings
+        dial.conference(
+            emergency_id,
+            wait_url='http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3',
+            status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
+            status_callback_event=['join', 'leave', 'end', 'start'],
+            end_conference_on_exit=True,
+            max_participants=2,
+            record='record-from-start',
+            time_limit=3600  # 1 hour maximum
+        )
+        response.append(dial)
+        logging.info(f"Conference configured successfully. Emergency ID: {emergency_id}")
+        
+    except Exception as e:
+        logging.error(f"Error setting up conference: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
+        response.say("We apologize, but there was an error setting up the conference. Please try again.")
+        response.hangup()
 
     # If technician has already been informed, connect them now
     if emergency.get('status') == 'technician_informed':
@@ -529,18 +549,37 @@ def connect_technician_to_conference(emergency_id, technician_number):
     """Makes a new call to the technician and puts them in the conference."""
     try:
         logging.info(f"\n--- CONNECTING TECHNICIAN TO CONFERENCE ---\nEmergency ID: {emergency_id}\nTechnician: {technician_number}\nKnown Contact: {KNOWN_CONTACTS.get(technician_number, 'Unknown')}")
+        
+        # Validate configuration
+        if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_AUTOMATED_NUMBER]):
+            raise ValueError("Missing required Twilio configuration")
+            
+        # Validate phone number
+        if not technician_number or not technician_number.startswith('+'):
+            raise ValueError(f"Invalid technician number format: {technician_number}")
+            
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         logging.info("Successfully created Twilio client for conference connection")
         
-        conference_twiml = f'<Response><Dial><Conference>{emergency_id}</Conference></Dial></Response>'
+        conference_twiml = f'<Response><Dial><Conference statusCallbackEvent="join leave">{emergency_id}</Conference></Dial></Response>'
+        logging.info(f"Generated conference TwiML: {conference_twiml}")
         
-        client.calls.create(
+        call = client.calls.create(
             twiml=conference_twiml,
             to=technician_number,
-            from_=TWILIO_AUTOMATED_NUMBER
+            from_=TWILIO_AUTOMATED_NUMBER,
+            status_callback=f"{public_url}/conference_participant_status?emergency_id={emergency_id}",
+            status_callback_event=['initiated', 'ringing', 'answered', 'completed']
         )
+        logging.info(f"Initiated technician conference call. Call SID: {call.sid}")
+        return True
+        
+    except ValueError as ve:
+        logging.error(f"Configuration error in conference connection: {ve}")
+        return False
     except Exception as e:
-        logging.error(f"Failed to connect technician to conference: {e}")
+        logging.error(f"Failed to connect technician to conference: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
+        return False
 
 
 @app.route("/conference_status", methods=['POST'])
