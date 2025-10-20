@@ -511,10 +511,15 @@ def technician_call_ended():
         logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
         return '', 200
 
+    # First, check if a customer is already on hold.
+    customer_is_waiting = emergency.get('status') == 'customer_waiting'
+    logging.info(f"Customer waiting status: {customer_is_waiting}")
+
+    # Now, update the status to show the technician has been informed.
     update_active_emergency('status', 'technician_informed')
 
-    # If customer is already waiting, connect the technician
-    if emergency.get('status') == 'customer_waiting':
+    # If a customer was waiting, connect the technician now.
+    if customer_is_waiting:
         connect_technician_to_conference(emergency_id, emergency.get('technician_number'))
 
     return '', 200
