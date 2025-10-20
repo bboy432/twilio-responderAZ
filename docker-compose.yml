@@ -6,6 +6,10 @@ services:
     container_name: twilio_responder_app
     restart: unless-stopped
     environment:
+      # THIS IS THE NEW LINE THAT FIXES THE LOGGING
+      - PYTHONUNBUFFERED=1 
+      
+      # The rest of your variables
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
       - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
@@ -36,3 +40,4 @@ volumes:
 
 networks:
   twilio-net:
+
