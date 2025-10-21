@@ -39,16 +39,41 @@ except ImportError as e:
 # Helper function for debug webhooks
 def send_debug(event_type, data=None):
     if not DEBUG_WEBHOOK_URL:
-        return
+        # Still persist to local log even if no webhook is configured
+        pass
     payload = {
         "event": event_type,
         "timestamp": datetime.now().isoformat(),
         "data": data or {}
     }
+
+    # Post to configured debug webhook if available
     try:
-        requests.post(DEBUG_WEBHOOK_URL, json=payload)
-    except:
-        pass  # Silently fail if webhook fails
+        if DEBUG_WEBHOOK_URL:
+            requests.post(DEBUG_WEBHOOK_URL, json=payload, timeout=5)
+    except Exception:
+        # Don't raise for webhook delivery failures
+        pass
+
+    # Also append a structured block to the local app log so /debug_firehose can read it
+    try:
+        log_dir = os.path.dirname(LOG_PATH)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+
+        # Build a block matching the parse_log_for_timeline delimiter
+        block_title = event_type.upper()
+        timestamp_line = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        block_content = json.dumps(payload, default=str, ensure_ascii=False, indent=2)
+        with open(LOG_PATH, 'a', encoding='utf-8') as lf:
+            lf.write(f"\n--- {block_title} ---\n")
+            lf.write(f"{timestamp_line} - {block_content}\n")
+    except Exception as e:
+        # As a last resort, ensure logging doesn't interrupt the app
+        try:
+            print(f"Failed to write debug log: {e}")
+        except:
+            pass
 
 # --- Load Configuration from Environment Variables ---
 try:
