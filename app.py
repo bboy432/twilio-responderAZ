@@ -561,7 +561,7 @@ def connect_technician_to_customer(emergency_id, technician_number):
             twiml=dequeue_twiml,
             to=technician_number,
             from_=TWILIO_AUTOMATED_NUMBER,
-            status_callback=f"{public_url}/call_status?emergency_id={emergency_id}",
+            status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
             status_callback_event=['completed']
         )
         logging.info(f"Initiated technician call. Call SID: {call.sid}")
