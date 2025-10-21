@@ -3,7 +3,7 @@ version: '3.8'
 services:
   twilio-app:
     build: .
-    container_name: twilio_responder_app
+    container_name: twilio_responder_app2
     restart: unless-stopped
     environment:
       # THIS IS THE NEW LINE THAT FIXES THE LOGGING
@@ -27,7 +27,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: twilio_responder_cloudflared
+    container_name: twilio_responder_cloudflared2
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
     depends_on:
