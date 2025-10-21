@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ branch.name }} Dashboard - Axiom Emergencies</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🚨 Axiom Emergencies - {{ branch.name }}</h1>
+        </div>
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}" class="nav-link">← Back to Main Dashboard</a>
+            <span class="nav-user">👤 {{ session.username }}</span>
+            <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-header">
+            <h2>{{ branch.name }} Branch Dashboard</h2>
+            <span class="status-badge status-{{ 'online' if status.online else 'offline' }}">
+                {{ status.status }}
+            </span>
+        </div>
+
+        {% if not status.enabled %}
+        <div class="alert alert-warning">
+            ⚠️ This branch is currently DISABLED. Emergency calls will not be processed.
+        </div>
+        {% endif %}
+
+        <div class="branch-detail-card">
+            <h3>Branch Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Location:</label>
+                    <span>{{ branch.name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Public URL:</label>
+                    <span><a href="{{ branch.public_url }}" target="_blank">{{ branch.public_url }}</a></span>
+                </div>
+                <div class="info-item">
+                    <label>Status:</label>
+                    <span class="status-text-{{ 'online' if status.online else 'offline' }}">
+                        {{ status.status }}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <label>Message:</label>
+                    <span>{{ status.message }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Enabled:</label>
+                    <span>{{ 'Yes' if status.enabled else 'No' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="iframe-container">
+            <h3>Branch Dashboard</h3>
+            <iframe src="{{ branch.public_url }}/status" frameborder="0" width="100%" height="600px"></iframe>
+        </div>
+
+        <div class="actions-section">
+            <button class="btn btn-secondary" onclick="window.location.reload()">
+                🔄 Refresh
+            </button>
+            
+            {% if is_admin %}
+                {% if status.enabled %}
+                <button class="btn btn-danger" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                    Disable Branch
+                </button>
+                {% else %}
+                <button class="btn btn-success" onclick="enableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                    Enable Branch
+                </button>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

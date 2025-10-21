@@ -1,6 +1,56 @@
-# Twilio Responder — API Reference & Dashboard Integration Guide
+# Twilio Responder — Multi-Instance Emergency Response System
 
-This document describes the Flask-based Twilio Responder API and how to integrate its endpoints into a dashboard. It explains the available HTTP endpoints, expected payloads, webhook flows, debug tools, and practical tips for building a dashboard UI.
+This is a Flask-based Twilio emergency response system that supports multiple independent branch instances with a centralized admin dashboard. Each branch operates independently with its own Twilio configuration, phone numbers, and recipients.
+
+## 🚨 Multi-Instance Architecture
+
+The system supports three branch locations:
+- **Tucson (TUC)** - tuc.axiom-emergencies.com
+- **Pocatello (POC)** - poc.axiom-emergencies.com
+- **Rexburg (REX)** - rex.axiom-emergencies.com
+
+Plus a centralized **Admin Dashboard** at axiom-emergencies.com for monitoring and management.
+
+## 📖 Documentation
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
+- **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
+- **[API Reference](#api-reference)** - Below in this document
+
+## 🎯 Quick Start
+
+### Multi-Instance Deployment
+
+```bash
+# Copy and configure environment variables
+cp .env.example .env
+nano .env
+
+# Deploy with Docker Compose
+docker-compose -f docker-compose.multi.yml up -d
+```
+
+### Admin Dashboard
+
+Access at https://axiom-emergencies.com
+
+- **Default Username**: axiomadmin
+- **Default Password**: Dannyle44!
+
+### Features
+
+1. **Multi-Branch Management** - Monitor all three branches from one dashboard
+2. **User Management** - Create sub-accounts with branch-specific permissions
+3. **Branch Control** - Enable/disable branches with confirmation and SMS notifications
+4. **Real-Time Status** - Live status updates for each branch
+5. **Independent Configuration** - Each branch has its own Twilio account, phone numbers, and recipients
+
+---
+
+## API Reference & Dashboard Integration Guide
+
+This section describes the Flask-based Twilio Responder API and how to integrate its endpoints into a dashboard. It explains the available HTTP endpoints, expected payloads, webhook flows, debug tools, and practical tips for building a dashboard UI.
 
 ## 🎯 Quick Start - Dashboard
 
