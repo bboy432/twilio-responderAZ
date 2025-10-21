@@ -23,8 +23,10 @@ except ImportError:
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
-# The number that will RECEIVE the startup and status texts
-RECIPIENT_NUMBER = "+18017104034"
+# Get the recipient number from environment variable, with fallback for backward compatibility
+RECIPIENT_NUMBER = os.environ.get('RECIPIENT_PHONES', '').split(',')[0]  # Get recipient number from environment variable
+if not RECIPIENT_NUMBER:
+    logging.warning("RECIPIENT_PHONES environment variable not set. SMS notifications will not be sent.")
 # ==============================================================================
 
 # Configure logging
