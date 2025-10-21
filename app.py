@@ -432,6 +432,32 @@ def resolve_errors():
             send_debug("archive_error", {"error": str(e)})
     return redirect(url_for('status_page'))
 
+
+@app.route('/debug_firehose', methods=['POST', 'GET'])
+def debug_firehose():
+    """Sends a few example debug webhooks so you can verify the container's outbound calls.
+    Use optional query param `webhook_url` to override DEBUG_WEBHOOK_URL for testing.
+    """
+    target = request.args.get('webhook_url') or DEBUG_WEBHOOK_URL
+    if not target:
+        return jsonify({"error": "No webhook URL configured. Set DEBUG_WEBHOOK_URL or pass webhook_url param."}), 400
+
+    events = [
+        {"event": "debug_firehose_start", "msg": "container test start"},
+        {"event": "debug_firehose_ping", "msg": "ping from app"},
+        {"event": "debug_firehose_end", "msg": "container test end"}
+    ]
+
+    results = []
+    for ev in events:
+        try:
+            r = requests.post(target, json=ev, timeout=10)
+            results.append({"event": ev.get('event'), "status_code": r.status_code})
+        except Exception as e:
+            results.append({"event": ev.get('event'), "error": str(e)})
+
+    return jsonify({"target": target, "results": results})
+
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
     """Starts the emergency workflow."""
