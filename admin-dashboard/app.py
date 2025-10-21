@@ -1,10 +1,10 @@
 import os
 import sqlite3
-import hashlib
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from werkzeug.security import generate_password_hash, check_password_hash
 import requests
 from twilio.rest import Client
 
@@ -86,7 +86,7 @@ def init_db():
                      VALUES (?, 1, CURRENT_TIMESTAMP)''', (branch,))
     
     # Create default admin user if not exists
-    admin_hash = hashlib.sha256((ADMIN_PASSWORD).encode()).hexdigest()
+    admin_hash = generate_password_hash(ADMIN_PASSWORD, method='pbkdf2:sha256', salt_length=16)
     c.execute('''INSERT OR IGNORE INTO users (username, password_hash, is_admin) 
                  VALUES (?, ?, 1)''', (ADMIN_USERNAME, admin_hash))
     
@@ -95,8 +95,8 @@ def init_db():
 
 
 def hash_password(password):
-    """Hash a password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using pbkdf2:sha256"""
+    return generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
 
 
 def verify_user(username, password):
@@ -104,14 +104,12 @@ def verify_user(username, password):
     conn = sqlite3.connect(DATABASE_PATH)
     c = conn.cursor()
     
-    password_hash = hash_password(password)
-    c.execute('SELECT id, is_admin FROM users WHERE username = ? AND password_hash = ?',
-              (username, password_hash))
+    c.execute('SELECT id, password_hash, is_admin FROM users WHERE username = ?', (username,))
     result = c.fetchone()
     conn.close()
     
-    if result:
-        return {'id': result[0], 'username': username, 'is_admin': bool(result[1])}
+    if result and check_password_hash(result[1], password):
+        return {'id': result[0], 'username': username, 'is_admin': bool(result[2])}
     return None
 
 

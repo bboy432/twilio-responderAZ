@@ -114,7 +114,7 @@ The admin dashboard provides centralized monitoring and management of all Twilio
 
 ## Security Features
 
-1. **Password Hashing**: SHA-256 hashing for all passwords
+1. **Password Hashing**: PBKDF2-SHA256 hashing with salt for all passwords (secure key derivation)
 2. **Session Management**: Secure session cookies with configurable lifetime (12 hours)
 3. **CSRF Protection**: Built-in Flask CSRF protection
 4. **Permission Checking**: All actions validated against user permissions
