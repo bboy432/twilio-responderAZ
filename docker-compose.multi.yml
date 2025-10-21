@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # Tucson Branch
+  twilio-app-tuc:
+    build: .
+    container_name: twilio_responder_tuc
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BRANCH_NAME=tuc
+      - TWILIO_ACCOUNT_SID=${TUC_TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TUC_TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TUC_TWILIO_PHONE_NUMBER}
+      - TWILIO_AUTOMATED_NUMBER=${TUC_TWILIO_AUTOMATED_NUMBER}
+      - TWILIO_TRANSFER_NUMBER=${TUC_TWILIO_TRANSFER_NUMBER}
+      - TRANSFER_TARGET_PHONE_NUMBER=${TUC_TRANSFER_TARGET_PHONE_NUMBER}
+      - PUBLIC_URL=${TUC_PUBLIC_URL}
+      - FLASK_PORT=5000
+      - RECIPIENT_PHONES=${TUC_RECIPIENT_PHONES}
+      - RECIPIENT_EMAILS=${TUC_RECIPIENT_EMAILS}
+      - DEBUG_WEBHOOK_URL=${TUC_DEBUG_WEBHOOK_URL}
+    volumes:
+      - tuc_logs:/app/logs
+    networks:
+      - twilio-net
+
+  # Pocatello Branch
+  twilio-app-poc:
+    build: .
+    container_name: twilio_responder_poc
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BRANCH_NAME=poc
+      - TWILIO_ACCOUNT_SID=${POC_TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${POC_TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${POC_TWILIO_PHONE_NUMBER}
+      - TWILIO_AUTOMATED_NUMBER=${POC_TWILIO_AUTOMATED_NUMBER}
+      - TWILIO_TRANSFER_NUMBER=${POC_TWILIO_TRANSFER_NUMBER}
+      - TRANSFER_TARGET_PHONE_NUMBER=${POC_TRANSFER_TARGET_PHONE_NUMBER}
+      - PUBLIC_URL=${POC_PUBLIC_URL}
+      - FLASK_PORT=5000
+      - RECIPIENT_PHONES=${POC_RECIPIENT_PHONES}
+      - RECIPIENT_EMAILS=${POC_RECIPIENT_EMAILS}
+      - DEBUG_WEBHOOK_URL=${POC_DEBUG_WEBHOOK_URL}
+    volumes:
+      - poc_logs:/app/logs
+    networks:
+      - twilio-net
+
+  # Rexburg Branch
+  twilio-app-rex:
+    build: .
+    container_name: twilio_responder_rex
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - BRANCH_NAME=rex
+      - TWILIO_ACCOUNT_SID=${REX_TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${REX_TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${REX_TWILIO_PHONE_NUMBER}
+      - TWILIO_AUTOMATED_NUMBER=${REX_TWILIO_AUTOMATED_NUMBER}
+      - TWILIO_TRANSFER_NUMBER=${REX_TWILIO_TRANSFER_NUMBER}
+      - TRANSFER_TARGET_PHONE_NUMBER=${REX_TRANSFER_TARGET_PHONE_NUMBER}
+      - PUBLIC_URL=${REX_PUBLIC_URL}
+      - FLASK_PORT=5000
+      - RECIPIENT_PHONES=${REX_RECIPIENT_PHONES}
+      - RECIPIENT_EMAILS=${REX_RECIPIENT_EMAILS}
+      - DEBUG_WEBHOOK_URL=${REX_DEBUG_WEBHOOK_URL}
+    volumes:
+      - rex_logs:/app/logs
+    networks:
+      - twilio-net
+
+  # Main Admin Dashboard
+  admin-dashboard:
+    build:
+      context: ./admin-dashboard
+      dockerfile: Dockerfile
+    container_name: twilio_responder_admin
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_SECRET_KEY=${ADMIN_FLASK_SECRET_KEY:-change-this-secret-key}
+      - ADMIN_USERNAME=axiomadmin
+      - ADMIN_PASSWORD=Dannyle44!
+      - TUC_URL=http://twilio-app-tuc:5000
+      - POC_URL=http://twilio-app-poc:5000
+      - REX_URL=http://twilio-app-rex:5000
+      - TUC_PUBLIC_URL=${TUC_PUBLIC_URL:-https://tuc.axiom-emergencies.com}
+      - POC_PUBLIC_URL=${POC_PUBLIC_URL:-https://poc.axiom-emergencies.com}
+      - REX_PUBLIC_URL=${REX_PUBLIC_URL:-https://rex.axiom-emergencies.com}
+      - NOTIFICATION_PHONE=+18017104034
+      - TWILIO_ACCOUNT_SID=${ADMIN_TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${ADMIN_TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${ADMIN_TWILIO_PHONE_NUMBER}
+      - DATABASE_PATH=/app/data/admin.db
+    volumes:
+      - admin_data:/app/data
+    networks:
+      - twilio-net
+    depends_on:
+      - twilio-app-tuc
+      - twilio-app-poc
+      - twilio-app-rex
+
+  # Cloudflare Tunnel (if using single tunnel)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: twilio_responder_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    depends_on:
+      - twilio-app-tuc
+      - twilio-app-poc
+      - twilio-app-rex
+      - admin-dashboard
+    networks:
+      - twilio-net
+
+volumes:
+  tuc_logs:
+  poc_logs:
+  rex_logs:
+  admin_data:
+
+networks:
+  twilio-net:
+    driver: bridge

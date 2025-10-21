@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Axiom Emergencies</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🚨 Axiom Emergencies</h1>
+        </div>
+        <div class="nav-menu">
+            <a href="{{ url_for('dashboard') }}" class="nav-link active">Dashboard</a>
+            {% if is_admin %}
+            <a href="{{ url_for('users') }}" class="nav-link">Users</a>
+            {% endif %}
+            <span class="nav-user">👤 {{ session.username }}</span>
+            <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="dashboard-header">
+            <h2>Emergency Response Dashboard</h2>
+            <p class="subtitle">Monitor and manage all branch locations</p>
+        </div>
+
+        <div class="branches-grid">
+            {% for branch_key, branch in branches.items() %}
+                {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_view) %}
+                <div class="branch-card {% if not branch.enabled %}disabled{% endif %}" data-branch="{{ branch_key }}">
+                    <div class="branch-header">
+                        <h3>{{ branch.name }}</h3>
+                        <span class="status-badge status-{{ 'online' if branch.online else 'offline' }}">
+                            {{ branch.status }}
+                        </span>
+                    </div>
+                    
+                    <div class="branch-info">
+                        <p class="branch-message">{{ branch.message }}</p>
+                        <p class="branch-url">
+                            <a href="{{ branch.public_url }}" target="_blank">{{ branch.public_url }}</a>
+                        </p>
+                    </div>
+                    
+                    <div class="branch-actions">
+                        <a href="{{ url_for('branch_dashboard', branch=branch_key) }}" class="btn btn-secondary btn-sm">
+                            View Dashboard
+                        </a>
+                        
+                        {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_disable) %}
+                            {% if branch.enabled %}
+                            <button class="btn btn-danger btn-sm" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                                Disable
+                            </button>
+                            {% else %}
+                            <button class="btn btn-success btn-sm" onclick="enableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                                Enable
+                            </button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    
+                    {% if not branch.enabled %}
+                    <div class="disabled-overlay">
+                        <span>⚠️ DISABLED</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="refresh-section">
+            <button class="btn btn-primary" onclick="refreshDashboard()">
+                🔄 Refresh Status
+            </button>
+            <span class="last-updated">Last updated: <span id="lastUpdate">{{ now.strftime('%Y-%m-%d %H:%M:%S') if now else 'Never' }}</span></span>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
