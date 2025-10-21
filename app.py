@@ -15,6 +15,9 @@ import socket
 
 import uuid
 
+# Docker-friendly log path (inside container)
+LOG_PATH = "/app/logs/app.log"
+
 # It's good practice to wrap third-party library imports in a try-except block
 try:
     from twilio.rest import Client
@@ -29,21 +32,23 @@ try:
     MESSAGING_MODULE_LOADED = True
 except ImportError as e:
     MESSAGING_MODULE_LOADED = False
-    logging.warning(f"Could not import from messages.py, status replies will be disabled. Error: {e}")
+    # Early failure - logging may not be configured yet. Print so container logs show it.
+    print(f"Could not import from messages.py, status replies will be disabled. Error: {e}")
 
 
-# Docker-friendly log path (inside container)
-LOG_PATH = "/app/logs/app.log"
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_PATH),
-        logging.StreamHandler()
-    ]
-)
+# Helper function for debug webhooks
+def send_debug(event_type, data=None):
+    if not DEBUG_WEBHOOK_URL:
+        return
+    payload = {
+        "event": event_type,
+        "timestamp": datetime.now().isoformat(),
+        "data": data or {}
+    }
+    try:
+        requests.post(DEBUG_WEBHOOK_URL, json=payload)
+    except:
+        pass  # Silently fail if webhook fails
 
 # --- Load Configuration from Environment Variables ---
 try:
@@ -56,15 +61,18 @@ try:
     PUBLIC_URL = os.environ.get('PUBLIC_URL')
     FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
     RECIPIENT_EMAILS = os.environ.get('RECIPIENT_EMAILS', '') # <-- ADD THIS LINE
+    DEBUG_WEBHOOK_URL = os.environ.get('DEBUG_WEBHOOK_URL', '')
     
     # Debug line to check if RECIPIENT_PHONES is being loaded
-    logging.info(f"DEBUG: Loaded RECIPIENT_PHONES = {os.environ.get('RECIPIENT_PHONES')}")
+    send_debug("env_debug", {"RECIPIENT_PHONES": os.environ.get('RECIPIENT_PHONES')})
 
     if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
         raise ValueError("One or more required environment variables are missing.")
 
 except Exception as e:
-    logging.critical(f"CRITICAL ERROR: Could not load configuration from environment variables: {e}")
+    # Critical config load failure - print and send webhook
+    print(f"CRITICAL ERROR: Could not load configuration from environment variables: {e}")
+    send_debug("config_load_error", {"error": str(e)})
     exit()
 
 # --- Contact Mapping ---
@@ -83,14 +91,10 @@ public_url = PUBLIC_URL
 def send_to_all(subject, body):
     email_recipients = [e.strip() for e in RECIPIENT_EMAILS.split(',') if e.strip()]
     if not email_recipients:
-        logging.warning("Email sending skipped: RECIPIENT_EMAILS environment variable is not set.")
+        send_debug("email_skipped", {"reason": "RECIPIENT_EMAILS not set"})
         return
 
-    logging.info("--- SIMULATING EMAIL SEND ---")
-    logging.info(f"Recipients: {', '.join(email_recipients)}")
-    logging.info(f"Subject: {subject}")
-    logging.info(f"Body:\n{body}")
-    logging.info("--- END OF SIMULATED EMAIL ---")
+    send_debug("simulated_email", {"recipients": email_recipients, "subject": subject, "body": body})
 
 # --- Global State Management ---
 # This dictionary will hold the state of the single, active emergency.
@@ -107,7 +111,7 @@ def get_network_info():
         ip_address = subprocess.check_output(['hostname', '-I']).decode('utf-8').split()[0]
         return hostname, ip_address
     except Exception as e:
-        logging.error(f"Could not get network info: {e}")
+        send_debug("network_info_error", {"error": str(e)})
         return "Unknown Host", "Unknown IP"
 
 def get_simple_status():
@@ -221,9 +225,9 @@ def log_request_details(req):
         if req.is_json:
             log_message += f"JSON Data: {req.get_json()}\n"
         log_message += f"Form Data: {dict(req.form)}\nQuery Params: {dict(req.args)}"
-        logging.info(log_message)
+        send_debug("request_details", {"details": log_message})
     except Exception as e:
-        logging.debug(f"Failed to log request details: {e}")
+        send_debug("request_log_failed", {"error": str(e)})
 
 # --- Formatting and Helper Functions ---
 
@@ -257,7 +261,7 @@ def format_emergency_message(emergency_data):
         return full_message
 
     except Exception as e:
-        logging.error(f"Error formatting emergency message: {e}")
+        send_debug("format_message_error", {"error": str(e)})
         return "Emergency notification. Critical data was missing or an error occurred."
 
 def format_emergency_sms(emergency_data):
@@ -270,7 +274,7 @@ def format_emergency_sms(emergency_data):
             f"Address: {emergency_data.get('incident_address', 'N/A')}\n\nEmergency Details:\n{emergency_data.get('emergency_description_text', 'N/A')}"
         )
     except KeyError as e:
-        logging.error(f"Missing field for SMS: {e}")
+        send_debug("format_sms_keyerror", {"error": str(e)})
         return "Emergency Alert - Details unavailable"
 
 def format_final_email(emergency_data):
@@ -294,31 +298,52 @@ def format_final_email(emergency_data):
 
 def send_sms_to_all_recipients(client, sms_message):
     recipients_str = os.environ.get('RECIPIENT_PHONES', '')
+    
+    if DEBUG_WEBHOOK_URL:
+        debug_data = {
+            "event": "sms_attempt",
+            "recipients_from_env": recipients_str,
+            "twilio_number": TWILIO_AUTOMATED_NUMBER,
+            "message": sms_message
+        }
+        requests.post(DEBUG_WEBHOOK_URL, json=debug_data)
+    
     if not recipients_str:
-        logging.warning("RECIPIENT_PHONES environment variable not set. No SMS recipients to alert.")
+        if DEBUG_WEBHOOK_URL:
+            requests.post(DEBUG_WEBHOOK_URL, json={"event": "error", "message": "RECIPIENT_PHONES not set"})
         return
 
     phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
     
     for phone_number in phone_numbers:
         try:
-            client.messages.create(body=sms_message, from_=TWILIO_AUTOMATED_NUMBER, to=phone_number)
-            logging.info(f"Sent alert SMS to recipient: {phone_number}")
+            if not phone_number.startswith('+'):
+                phone_number = '+' + phone_number
+                if DEBUG_WEBHOOK_URL:
+                    requests.post(DEBUG_WEBHOOK_URL, json={"event": "number_formatted", "number": phone_number})
+            
+            message = client.messages.create(body=sms_message, from_=TWILIO_AUTOMATED_NUMBER, to=phone_number)
+            if DEBUG_WEBHOOK_URL:
+                requests.post(DEBUG_WEBHOOK_URL, json={"event": "sms_sent", "to": phone_number, "sid": message.sid})
         except Exception as e:
-            logging.error(f"Failed to send SMS to {phone_number}: {e}")
+            if DEBUG_WEBHOOK_URL:
+                requests.post(DEBUG_WEBHOOK_URL, json={"event": "sms_error", "to": phone_number, "error": str(e)})
 
 def make_emergency_call(emergency_id, emergency_data):
     """Initiates the detailed call to the technician."""
-    logging.info(f"\n--- INITIATING EMERGENCY CALL ---\nEmergency ID: {emergency_id}\nData: {json.dumps(emergency_data, default=str, indent=2)}")
+    send_debug("emergency_call_start", {
+        "emergency_id": emergency_id,
+        "emergency_data": emergency_data
+    })
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         technician_number = emergency_data.get('technician_number')
-        logging.info(f"Creating Twilio client for emergency call to: {technician_number}")
+        send_debug("twilio_client_created", {"technician_number": technician_number})
         
         # Send SMS
         sms_text = format_emergency_sms(emergency_data)
         client.messages.create(body=sms_text, from_=TWILIO_AUTOMATED_NUMBER, to=technician_number)
-        logging.info(f"Emergency SMS sent to primary target {technician_number}")
+        send_debug("primary_sms_sent", {"to": technician_number})
         send_sms_to_all_recipients(client, sms_text)
 
         # Make call
@@ -330,11 +355,11 @@ def make_emergency_call(emergency_id, emergency_data):
             status_callback_event=['completed']
         )
         
-        logging.info(f"Emergency call initiated to {technician_number}! Call SID: {call.sid}")
+        send_debug("emergency_call_initiated", {"to": technician_number, "call_sid": call.sid})
         update_active_emergency('technician_call_sid', call.sid)
         return True
     except Exception as e:
-        logging.error(f"Error in emergency notification: {e}")
+        send_debug("emergency_call_error", {"error": str(e)})
         return False
 
 
@@ -402,21 +427,20 @@ def resolve_errors():
         archive_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"app.log.resolved.{int(time.time())}")
         try:
             os.rename(log_path, archive_path)
-            logging.info(f"--- ERRORS RESOLVED: Log archived to {archive_path} ---")
+            send_debug("errors_resolved", {"archive_path": archive_path})
         except Exception as e:
-            logging.error(f"Could not archive log file: {e}")
+            send_debug("archive_error", {"error": str(e)})
     return redirect(url_for('status_page'))
 
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
     """Starts the emergency workflow."""
-    logging.info("\n--- NEW WEBHOOK RECEIVED ---\n")
+    send_debug("webhook_received", {"method": request.method, "url": request.url})
     log_request_details(request)
-    
-    logging.info("Checking system state before processing webhook...")
+    send_debug("webhook_state_check", {})
     if get_active_emergency():
         current_emergency = get_active_emergency()
-        logging.error(f"Webhook received while emergency is active:\nActive Emergency ID: {current_emergency.get('id')}\nStatus: {current_emergency.get('status')}\nTimestamp: {current_emergency.get('timestamp')}")
+        send_debug("webhook_while_active", {"active_emergency": current_emergency})
         return jsonify({"status": "error", "message": "System is busy."}), 503
 
     try:
@@ -444,34 +468,37 @@ def webhook_listener():
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
-        logging.error(f"Webhook error: {e}", exc_info=True)
+        send_debug("webhook_processing_error", {"error": str(e)})
         return jsonify({"status": "error"}), 500
 
 
 @app.route('/sms_reply', methods=['POST'])
 def sms_reply():
-    logging.info("\n--- INCOMING SMS ---\n")
+    send_debug("incoming_sms", {"from": request.form.get('From'), "body": request.form.get('Body')})
     log_request_details(request)
     if MESSAGING_MODULE_LOADED:
         from_number = request.form.get('From')
         send_status_report(from_number)
     else:
-        logging.error("Messaging module not loaded. Cannot reply to SMS.")
+        send_debug("messaging_module_missing", {"message": "Messaging module not loaded. Cannot reply to SMS."})
     return '', 204
 
 @app.route("/incoming_twilio_call", methods=['POST'])
 def handle_incoming_twilio_call():
     """Handles the incoming call from the customer."""
-    logging.info("\n--- INCOMING TWILIO CALL ---\n")
-    log_request_details(request)
-    
-    logging.info(f"Call Details:\nFrom: {request.values.get('From')}\nTo: {request.values.get('To')}\nCallSID: {request.values.get('CallSid')}\nCall Status: {request.values.get('CallStatus')}")
+    send_debug("incoming_call", {
+        "from": request.values.get('From'),
+        "to": request.values.get('To'),
+        "call_sid": request.values.get('CallSid'),
+        "call_status": request.values.get('CallStatus')
+    })
     
     response = VoiceResponse()
     emergency = get_active_emergency()
-    logging.info(f"Current Emergency State: {json.dumps(emergency, default=str, indent=2)}")
+    send_debug("emergency_state", {"emergency": emergency})
 
     if not emergency:
+        send_debug("no_active_emergency")
         response.say("There is no active emergency. Please hang up.")
         response.hangup()
         return str(response), 200, {'Content-Type': 'application/xml'}
@@ -486,41 +513,47 @@ def handle_incoming_twilio_call():
         # Put the customer in a queue with hold music
         enqueueTwiml = response.enqueue(emergency_id)
         enqueueTwiml.wait_url = "http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3"
-        
-        logging.info(f"Customer placed in queue: {emergency_id}")
-        
+
+        send_debug("customer_queued", {"emergency_id": emergency_id})
+
         # If technician is ready, connect them right away
         if emergency.get('status') == 'technician_informed':
             connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
             
     except Exception as e:
-        logging.error(f"Error setting up call queue: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
+        send_debug("queue_setup_error", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
         response.say("We apologize, but there was an error connecting your call. Please try again.")
         response.hangup()
 
-    logging.info(f"DEBUG: Generated TwiML for incoming call: {str(response)}")
+    send_debug("incoming_twiml", {"twiml": str(response)})
     return str(response), 200, {'Content-Type': 'application/xml'}
 
 
 @app.route("/technician_call_ended", methods=['POST'])
 def technician_call_ended():
     """Callback for when the initial technician call ends."""
-    logging.info("\n--- TECHNICIAN CALL ENDED ---\n")
-    log_request_details(request)
-    
     emergency_id = request.args.get('emergency_id')
-    logging.info(f"Technician Call Details:\nEmergency ID: {emergency_id}\nCall SID: {request.values.get('CallSid')}\nCall Status: {request.values.get('CallStatus')}\nCall Duration: {request.values.get('CallDuration')} seconds\nCall Price: {request.values.get('Price')}")
+    send_debug("technician_call_ended", {
+        "emergency_id": emergency_id,
+        "call_sid": request.values.get('CallSid'),
+        "call_status": request.values.get('CallStatus'),
+        "duration": request.values.get('CallDuration'),
+        "price": request.values.get('Price')
+    })
     
     emergency = get_active_emergency()
-    logging.info(f"Current Emergency State:\n{json.dumps(emergency, default=str, indent=2)}")
+    send_debug("emergency_state", {"emergency": emergency})
 
     if not emergency or emergency.get('id') != emergency_id:
-        logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
+        send_debug("emergency_mismatch", {
+            "received_id": emergency_id,
+            "active_emergency_id": emergency.get('id') if emergency else None
+        })
         return '', 200
 
     # First, check if a customer is already on hold.
     customer_is_waiting = emergency.get('status') == 'customer_waiting'
-    logging.info(f"Customer waiting status: {customer_is_waiting}")
+    send_debug("customer_waiting_status", {"customer_is_waiting": customer_is_waiting})
 
     # Now, update the status to show the technician has been informed.
     update_active_emergency('status', 'technician_informed')
@@ -535,18 +568,24 @@ def technician_call_ended():
 def connect_technician_to_customer(emergency_id, technician_number):
     """Makes a new call to the technician and connects them to the waiting customer."""
     try:
-        logging.info(f"\n--- CONNECTING TECHNICIAN TO CUSTOMER ---\nEmergency ID: {emergency_id}\nTechnician: {technician_number}\nKnown Contact: {KNOWN_CONTACTS.get(technician_number, 'Unknown')}")
+        send_debug("connect_tech_start", {
+            "emergency_id": emergency_id,
+            "technician_number": technician_number,
+            "known_contact": KNOWN_CONTACTS.get(technician_number, 'Unknown')
+        })
         
         # Validate configuration
         if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_AUTOMATED_NUMBER]):
+            send_debug("config_error", {"message": "Missing required Twilio configuration"})
             raise ValueError("Missing required Twilio configuration")
             
         # Validate phone number
         if not technician_number or not technician_number.startswith('+'):
+            send_debug("validation_error", {"message": f"Invalid technician number format: {technician_number}"})
             raise ValueError(f"Invalid technician number format: {technician_number}")
             
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        logging.info("Successfully created Twilio client for customer connection")
+        send_debug("twilio_client_created", {"for": "customer_connection"})
         
         # Create TwiML to connect technician to the queue
         dequeue_twiml = f'''
@@ -557,7 +596,7 @@ def connect_technician_to_customer(emergency_id, technician_number):
             </Dial>
         </Response>
         '''
-        logging.info(f"Generated dequeue TwiML: {dequeue_twiml}")
+        send_debug("dequeue_twiml", {"twiml": dequeue_twiml})
         
         # Make the call to the technician
         call = client.calls.create(
@@ -567,40 +606,37 @@ def connect_technician_to_customer(emergency_id, technician_number):
             status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
             status_callback_event=['completed']
         )
-        logging.info(f"Initiated technician call. Call SID: {call.sid}")
+        send_debug("technician_call_initiated", {"call_sid": call.sid})
         return True
         
     except ValueError as ve:
-        logging.error(f"Configuration error in call connection: {ve}")
+        send_debug("connect_config_error", {"error": str(ve)})
         return False
     except Exception as e:
-        logging.error(f"Failed to connect technician to customer: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
-        return False
-        logging.info(f"Initiated technician conference call. Call SID: {call.sid}")
-        return True
-        
-    except ValueError as ve:
-        logging.error(f"Configuration error in conference connection: {ve}")
-        return False
-    except Exception as e:
-        logging.error(f"Failed to connect technician to conference: {str(e)}\nType: {type(e)}\nFull error: {repr(e)}")
+        send_debug("connect_failure", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
         return False
 
 
 @app.route("/conference_status", methods=['POST'])
 def conference_status():
     """Callback for when the conference ends."""
-    logging.info("\n--- CONFERENCE STATUS UPDATE ---\n")
-    log_request_details(request)
-    
     emergency_id = request.args.get('emergency_id')
-    logging.info(f"Conference Details:\nEmergency ID: {emergency_id}\nStatus Event: {request.values.get('StatusCallbackEvent')}\nConference SID: {request.values.get('ConferenceSid')}\nDuration: {request.values.get('Duration')} seconds\nParticipant Count: {request.values.get('ParticipantCount')}")
+    send_debug("conference_status", {
+        "emergency_id": emergency_id,
+        "status_event": request.values.get('StatusCallbackEvent'),
+        "conference_sid": request.values.get('ConferenceSid'),
+        "duration": request.values.get('Duration'),
+        "participant_count": request.values.get('ParticipantCount')
+    })
     
     emergency = get_active_emergency()
-    logging.info(f"Current Emergency State:\n{json.dumps(emergency, default=str, indent=2)}")
+    send_debug("emergency_state", {"emergency": emergency})
 
     if not emergency or emergency.get('id') != emergency_id:
-        logging.warning(f"Callback for unknown or mismatched emergency ID: {emergency_id}")
+        send_debug("emergency_mismatch", {
+            "received_id": emergency_id,
+            "active_emergency_id": emergency.get('id') if emergency else None
+        })
         return '', 200
 
     update_active_emergency('conference_status', request.values.get('StatusCallbackEvent'))
@@ -610,22 +646,24 @@ def conference_status():
     subject, body = format_final_email(get_active_emergency())
     if subject and body:
         send_to_all(subject, body)
-        logging.info("Final status email triggered.")
+        send_debug("final_status_email", {"subject": subject})
 
     # Clean up
     clear_active_emergency()
-    logging.info(f"Emergency {emergency_id} concluded and cleaned up.")
+    send_debug("emergency_concluded", {"emergency_id": emergency_id})
 
     return '', 200
 
 if __name__ == '__main__':
-    logging.info("=====================================================")
-    logging.info(f"Starting Flask App on http://0.0.0.0:{FLASK_PORT}")
-    logging.info(f"Public URL (Set in Twilio): {public_url}")
-    logging.info(f"Web Portal: {public_url}/status")
-    logging.info(f"Messaging module loaded: {MESSAGING_MODULE_LOADED}")
-    logging.info("=====================================================")
+    print("=====================================================")
+    print(f"Starting Flask App on http://0.0.0.0:{FLASK_PORT}")
+    print(f"Public URL (Set in Twilio): {public_url}")
+    print(f"Web Portal: {public_url}/status")
+    print(f"Messaging module loaded: {MESSAGING_MODULE_LOADED}")
+    print("=====================================================")
+    send_debug("app_start", {"public_url": public_url, "port": FLASK_PORT, "messaging_loaded": MESSAGING_MODULE_LOADED})
     try:
         app.run(host='0.0.0.0', port=FLASK_PORT, debug=False)
     except Exception as e:
-        logging.critical(f"Failed to start Flask app: {e}", exc_info=True)
+        print(f"Failed to start Flask app: {e}")
+        send_debug("app_start_failure", {"error": str(e)})

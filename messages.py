@@ -1,6 +1,7 @@
 import subprocess
 import os
 import time
+import requests
 import logging
 from datetime import datetime, timedelta
 import csv
@@ -26,7 +27,21 @@ TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 # Get the recipient number from environment variable, with fallback for backward compatibility
 RECIPIENT_NUMBER = os.environ.get('RECIPIENT_PHONES', '').split(',')[0]  # Get recipient number from environment variable
 if not RECIPIENT_NUMBER:
-    logging.warning("RECIPIENT_PHONES environment variable not set. SMS notifications will not be sent.")
+    print("WARNING: RECIPIENT_PHONES environment variable not set. SMS notifications will not be sent.")
+DEBUG_WEBHOOK_URL = os.environ.get('DEBUG_WEBHOOK_URL', '')
+
+def send_debug_messages(event_type, data=None):
+    if not DEBUG_WEBHOOK_URL:
+        return
+    payload = {
+        'event': event_type,
+        'timestamp': datetime.now().isoformat(),
+        'data': data or {}
+    }
+    try:
+        requests.post(DEBUG_WEBHOOK_URL, json=payload)
+    except:
+        pass
 # ==============================================================================
 
 # Configure logging
@@ -77,19 +92,24 @@ def send_startup_sms():
     """Sends a notification that the server has started."""
     ip_address = get_ip_address()
     message_body = f"Server Startup Notification: Online at IP {ip_address}"
+    send_debug_messages("startup_sms_attempt", {"to": RECIPIENT_NUMBER, "from": TWILIO_PHONE_NUMBER})
     try:
+        if not RECIPIENT_NUMBER:
+            send_debug_messages("startup_sms_skip", {"reason": "no_recipient"})
+            return
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         message = client.messages.create(
             body=message_body,
             from_=TWILIO_PHONE_NUMBER,
             to=RECIPIENT_NUMBER
         )
-        logging.info(f"Startup SMS sent. SID: {message.sid}")
+        send_debug_messages("startup_sms_sent", {"sid": getattr(message, 'sid', None)})
     except Exception as e:
-        logging.error(f"Failed to send startup SMS: {e}")
+        send_debug_messages("startup_sms_error", {"error": str(e)})
 
 def send_status_report(from_number):
     """Gathers system stats and sends them as an SMS reply."""
+    send_debug_messages("prepare_status_report", {"to": from_number})
     temp = get_cpu_temperature()
     uptime = get_uptime()
     cpu_now = f"{psutil.cpu_percent(interval=1):.1f}%"
@@ -113,9 +133,9 @@ def send_status_report(from_number):
             to=from_number,
             body=reply_body
         )
-        logging.info(f"Sent status report to {from_number}")
+        send_debug_messages("status_report_sent", {"to": from_number})
     except Exception as e:
-        logging.error(f"Failed to send status report: {e}")
+        send_debug_messages("status_report_error", {"error": str(e)})
 
 
 # --- Main execution block for running this script directly ---
@@ -123,9 +143,9 @@ if __name__ == '__main__':
     # This allows us to call the script from the command line for startup.
     # Example: python3 messages.py startup
     if len(sys.argv) > 1 and sys.argv[1] == 'startup':
-        logging.info("--- Running Startup SMS Script ---")
+        send_debug_messages("startup_script_running")
         send_startup_sms()
-        logging.info("--- Script Finished ---")
+        send_debug_messages("startup_script_finished")
     else:
         print("This script is intended to be imported or run with the 'startup' argument.")
 
