@@ -88,6 +88,9 @@ services:
       - TUC_URL=http://twilio-app-tuc:5000
       - POC_URL=http://twilio-app-poc:5000
       - REX_URL=http://twilio-app-rex:5000
+      - TUC_PUBLIC_URL=${TUC_PUBLIC_URL:-https://tuc.axiom-emergencies.com}
+      - POC_PUBLIC_URL=${POC_PUBLIC_URL:-https://poc.axiom-emergencies.com}
+      - REX_PUBLIC_URL=${REX_PUBLIC_URL:-https://rex.axiom-emergencies.com}
       - NOTIFICATION_PHONE=+18017104034
       - TWILIO_ACCOUNT_SID=${ADMIN_TWILIO_ACCOUNT_SID}
       - TWILIO_AUTH_TOKEN=${ADMIN_TWILIO_AUTH_TOKEN}
