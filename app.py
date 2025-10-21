@@ -56,6 +56,9 @@ try:
     PUBLIC_URL = os.environ.get('PUBLIC_URL')
     FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
     RECIPIENT_EMAILS = os.environ.get('RECIPIENT_EMAILS', '') # <-- ADD THIS LINE
+    
+    # Debug line to check if RECIPIENT_PHONES is being loaded
+    logging.info(f"DEBUG: Loaded RECIPIENT_PHONES = {os.environ.get('RECIPIENT_PHONES')}")
 
     if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
         raise ValueError("One or more required environment variables are missing.")
