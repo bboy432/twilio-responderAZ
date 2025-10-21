@@ -491,6 +491,14 @@ def debug_firehose():
     MAX_BYTES = 100 * 1024
     raw_log_snippet = raw_log[:MAX_BYTES]
 
+    # Ensure timeline is JSON-serializable (convert datetime objects)
+    serializable_timeline = []
+    for ev in timeline:
+        ev_copy = ev.copy()
+        if isinstance(ev_copy.get('raw_timestamp'), datetime):
+            ev_copy['raw_timestamp'] = ev_copy['raw_timestamp'].isoformat()
+        serializable_timeline.append(ev_copy)
+
     payload = {
         "event": "debug_firehose_log_dump",
         "timestamp": datetime.now().isoformat(),
@@ -498,7 +506,7 @@ def debug_firehose():
             "hostname": socket.gethostname(),
             "public_url": public_url
         },
-        "timeline": timeline,
+        "timeline": serializable_timeline,
         "raw_log_snippet": raw_log_snippet
     }
 
