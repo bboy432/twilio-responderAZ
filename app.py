@@ -119,7 +119,9 @@ def send_to_all(subject, body):
         send_debug("email_skipped", {"reason": "RECIPIENT_EMAILS not set"})
         return
 
-    send_debug("simulated_email", {"recipients": email_recipients, "subject": subject, "body": body})
+    # Note: Email sending is currently simulated. 
+    # To enable actual email delivery, configure an SMTP server or email service.
+    send_debug("email_notification", {"recipients": email_recipients, "subject": subject, "body": body, "note": "Email logging enabled - actual delivery not configured"})
 
 # --- Global State Management ---
 # This dictionary will hold the state of the single, active emergency.
@@ -150,7 +152,10 @@ def get_simple_status():
                 if "ERROR" in line.upper() or "CRITICAL" in line.upper():
                     # Check if the error is recent (e.g., in the last 5 minutes)
                     log_time_str = line.split(' - ')[0]
-                    log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S,%f')
+                    try:
+                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S,%f')
+                    except ValueError:
+                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
                     if datetime.now() - log_time < timedelta(minutes=5):
                         return "Error", "A recent error was detected in the logs."
         return "Ready", "System is online and waiting for calls."
@@ -187,7 +192,11 @@ def parse_log_for_timeline():
             match = re.search(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', block_content, re.MULTILINE)
             if not match: continue
 
-            dt_object = datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')
+            # Parse timestamp - handle both with and without milliseconds
+            try:
+                dt_object = datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S,%f')
+            except ValueError:
+                dt_object = datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')
             timestamp_12hr = dt_object.strftime('%b %d, %I:%M:%S %p')
 
             icon = "📄"
@@ -394,6 +403,8 @@ def make_emergency_call(emergency_id, emergency_data):
 def status_page():
     status, status_message = get_simple_status()
     last_3_calls = get_last_n_calls(3)
+    # Replace spaces with hyphens in status for CSS class name
+    status_class = status.replace(' ', '-')
 
     template = """<!DOCTYPE html>
 <html lang="en">
@@ -419,7 +430,7 @@ def status_page():
     </style>
 </head>
 <body>
-    <div class="status-box status-{{ status }}">
+    <div class="status-box status-{{ status_class }}">
         <h1>{{ status }}</h1>
         <p>{{ status_message }}</p>
     </div>
@@ -438,7 +449,7 @@ def status_page():
 </body>
 </html>
     """
-    return render_template_string(template, status=status, status_message=status_message, last_3_calls=last_3_calls)
+    return render_template_string(template, status=status, status_class=status_class, status_message=status_message, last_3_calls=last_3_calls)
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
