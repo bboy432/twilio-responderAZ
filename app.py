@@ -435,28 +435,56 @@ def resolve_errors():
 
 @app.route('/debug_firehose', methods=['POST', 'GET'])
 def debug_firehose():
-    """Sends a few example debug webhooks so you can verify the container's outbound calls.
-    Use optional query param `webhook_url` to override DEBUG_WEBHOOK_URL for testing.
+    """Posts a log dump and parsed timeline to a webhook URL.
+
+    Usage:
+      /debug_firehose?webhook_url=<url>
+    or set DEBUG_WEBHOOK_URL in the environment and call /debug_firehose
+
+    The handler will post a JSON payload with:
+      - timeline: parsed event list (from parse_log_for_timeline)
+      - raw_log: truncated raw log (first ~100KB)
+      - metadata: environment and timestamp
     """
-    target = request.args.get('webhook_url') or DEBUG_WEBHOOK_URL
+    # Accept either explicit webhook_url param or the configured DEBUG_WEBHOOK_URL
+    target = request.args.get('webhook_url') or request.args.get('webhook') or DEBUG_WEBHOOK_URL
     if not target:
         return jsonify({"error": "No webhook URL configured. Set DEBUG_WEBHOOK_URL or pass webhook_url param."}), 400
 
-    events = [
-        {"event": "debug_firehose_start", "msg": "container test start"},
-        {"event": "debug_firehose_ping", "msg": "ping from app"},
-        {"event": "debug_firehose_end", "msg": "container test end"}
-    ]
+    # Read & parse logs
+    timeline = parse_log_for_timeline()
+    raw_log = ''
+    try:
+        with open(LOG_PATH, 'r', encoding='utf-8', errors='replace') as f:
+            raw_log = f.read()
+    except FileNotFoundError:
+        raw_log = ''
+    except Exception as e:
+        raw_log = f"Error reading log: {e}"
+
+    # Truncate raw log to avoid huge payloads (100KB)
+    MAX_BYTES = 100 * 1024
+    raw_log_snippet = raw_log[:MAX_BYTES]
+
+    payload = {
+        "event": "debug_firehose_log_dump",
+        "timestamp": datetime.now().isoformat(),
+        "metadata": {
+            "hostname": socket.gethostname(),
+            "public_url": public_url
+        },
+        "timeline": timeline,
+        "raw_log_snippet": raw_log_snippet
+    }
 
     results = []
-    for ev in events:
-        try:
-            r = requests.post(target, json=ev, timeout=10)
-            results.append({"event": ev.get('event'), "status_code": r.status_code})
-        except Exception as e:
-            results.append({"event": ev.get('event'), "error": str(e)})
+    try:
+        r = requests.post(target, json=payload, timeout=20)
+        results.append({"posted_to": target, "status_code": getattr(r, 'status_code', None)})
+    except Exception as e:
+        results.append({"posted_to": target, "error": str(e)})
 
-    return jsonify({"target": target, "results": results})
+    return jsonify({"target": target, "results": results, "timeline_count": len(timeline)})
 
 @app.route('/webhook', methods=['POST'])
 def webhook_listener():
