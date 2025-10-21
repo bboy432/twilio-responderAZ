@@ -2,8 +2,21 @@
 
 This document describes the Flask-based Twilio Responder API and how to integrate its endpoints into a dashboard. It explains the available HTTP endpoints, expected payloads, webhook flows, debug tools, and practical tips for building a dashboard UI.
 
+## 🎯 Quick Start - Dashboard
+
+**NEW**: A ready-to-use monitoring dashboard is included in the `dashboard/` directory!
+
+```bash
+cd dashboard
+python3 -m http.server 8080
+# Open http://localhost:8080 in your browser
+```
+
+See [dashboard/README.md](dashboard/README.md) for full documentation.
+
 ## Quick overview
 - App: Flask app that receives emergency webhooks, notifies technicians by SMS and call via Twilio, and manages a single active emergency at a time.
+- Dashboard: A web-based monitoring interface for real-time status, emergency triggering, and log analysis (see `dashboard/` directory).
 - Debugging: The app can post structured debug events to `DEBUG_WEBHOOK_URL` or a `webhook_url` provided to the debug endpoint.
 - Logs: The application writes logs to `/app/logs/app.log` and exposes parsing utilities for timeline/summary extraction.
 
