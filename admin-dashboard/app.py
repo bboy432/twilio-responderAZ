@@ -246,7 +246,8 @@ def dashboard():
     return render_template('dashboard.html',
                          branches=branch_statuses,
                          user_permissions=user_permissions,
-                         is_admin=session.get('is_admin', False))
+                         is_admin=session.get('is_admin', False),
+                         now=datetime.now())
 
 
 @app.route('/login', methods=['GET', 'POST'])

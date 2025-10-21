@@ -11,40 +11,72 @@ The system supports three branch locations:
 
 Plus a centralized **Admin Dashboard** at axiom-emergencies.com for monitoring and management.
 
-## 📖 Documentation
+## 🚀 Quick Start
 
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
-- **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
-- **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
-- **[API Reference](#api-reference)** - Below in this document
-
-## 🎯 Quick Start
-
-### Multi-Instance Deployment
+See **[QUICKSTART.md](QUICKSTART.md)** for step-by-step setup instructions.
 
 ```bash
-# Copy and configure environment variables
+# 1. Configure environment
 cp .env.example .env
 nano .env
 
-# Deploy with Docker Compose
+# 2. Deploy
 docker-compose -f docker-compose.multi.yml up -d
+
+# 3. Access dashboard
+# https://axiom-emergencies.com
+# Login: axiomadmin / Dannyle44!
 ```
 
+## 📖 Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
+- **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
+- **[admin-dashboard/README.md](admin-dashboard/README.md)** - Admin dashboard features
+- **[API Reference](#api-reference)** - Below in this document
+
+## 🎯 Features
+
 ### Admin Dashboard
-
-Access at https://axiom-emergencies.com
-
-- **Default Username**: axiomadmin
-- **Default Password**: Dannyle44!
-
-### Features
-
 1. **Multi-Branch Management** - Monitor all three branches from one dashboard
 2. **User Management** - Create sub-accounts with branch-specific permissions
 3. **Branch Control** - Enable/disable branches with confirmation and SMS notifications
-4. **Real-Time Status** - Live status updates for each branch
-5. **Independent Configuration** - Each branch has its own Twilio account, phone numbers, and recipients
+4. **Real-Time Status** - Live status updates for each branch (auto-refresh every 30s)
+5. **Permission System** - Granular control over view, trigger, and disable permissions
+
+### Each Branch Instance
+- Independent Twilio configuration
+- Separate phone numbers and recipients
+- Individual emergency handling
+- Real-time status monitoring
+- Timeline and logging
+
+### Security
+- Session-based authentication
+- Password hashing (SHA-256)
+- Permission-based access control
+- Double confirmation for critical actions
+- SMS notifications for admin actions
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│         Cloudflare Tunnel (SSL/TLS)             │
+└──────────────┬──────────────────────────────────┘
+               │
+    ┌──────────┼────────────┬────────────┬────────────┐
+    │          │            │            │            │
+┌───▼────┐ ┌──▼────┐  ┌────▼───┐  ┌────▼───┐  ┌────▼───┐
+│  Root  │ │  TUC  │  │  POC   │  │  REX   │  │ Admin  │
+│ Domain │ │ Branch│  │ Branch │  │ Branch │  │Dashboard│
+└────────┘ └───────┘  └────────┘  └────────┘  └────────┘
+              │             │           │           │
+              └─────────────┴───────────┴───────────┘
+                      Docker Network
+```
 
 ---
 
