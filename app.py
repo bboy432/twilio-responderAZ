@@ -152,11 +152,16 @@ def get_simple_status():
             for line in f:
                 if "ERROR" in line.upper() or "CRITICAL" in line.upper():
                     # Check if the error is recent (e.g., in the last 5 minutes)
+                    # Only process lines that start with a valid timestamp
                     log_time_str = line.split(' - ')[0]
                     try:
                         log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S,%f')
                     except ValueError:
-                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                        try:
+                            log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            # Skip lines that don't have a valid timestamp
+                            continue
                     if datetime.now() - log_time < timedelta(minutes=5):
                         return "Error", "A recent error was detected in the logs."
         return "Ready", "System is online and waiting for calls."
