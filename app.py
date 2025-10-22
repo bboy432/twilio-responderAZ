@@ -39,7 +39,10 @@ except ImportError as e:
 
 # Helper function for debug webhooks
 def send_debug(event_type, data=None):
-    if not DEBUG_WEBHOOK_URL:
+    # Get the current webhook URL from settings (can be updated via admin dashboard)
+    webhook_url = get_setting('DEBUG_WEBHOOK_URL', DEBUG_WEBHOOK_URL) if '_settings_cache' in globals() else DEBUG_WEBHOOK_URL
+    
+    if not webhook_url:
         # Still persist to local log even if no webhook is configured
         pass
     payload = {
@@ -62,8 +65,8 @@ def send_debug(event_type, data=None):
 
     # Post to configured debug webhook if available
     try:
-        if DEBUG_WEBHOOK_URL:
-            requests.post(DEBUG_WEBHOOK_URL, json=payload, timeout=5)
+        if webhook_url:
+            requests.post(webhook_url, json=payload, timeout=5)
     except Exception:
         # Don't raise for webhook delivery failures
         pass
@@ -704,15 +707,15 @@ def debug_firehose():
 
     Usage:
       /debug_firehose?webhook_url=<url>
-    or set DEBUG_WEBHOOK_URL in the environment and call /debug_firehose
+    or set DEBUG_WEBHOOK_URL in the environment/admin dashboard and call /debug_firehose
 
     The handler will post a JSON payload with:
       - timeline: parsed event list (from parse_log_for_timeline)
       - raw_log: truncated raw log (first ~100KB)
       - metadata: environment and timestamp
     """
-    # Accept either explicit webhook_url param or the configured DEBUG_WEBHOOK_URL
-    target = request.args.get('webhook_url') or request.args.get('webhook') or DEBUG_WEBHOOK_URL
+    # Accept either explicit webhook_url param or the configured DEBUG_WEBHOOK_URL from settings
+    target = request.args.get('webhook_url') or request.args.get('webhook') or get_setting('DEBUG_WEBHOOK_URL', DEBUG_WEBHOOK_URL)
     if not target:
         return jsonify({"error": "No webhook URL configured. Set DEBUG_WEBHOOK_URL or pass webhook_url param."}), 400
 
