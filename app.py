@@ -525,7 +525,9 @@ def reload_settings():
         else:
             return jsonify({"status": "success", "message": "Using environment variables"}), 200
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # Log the full error internally but don't expose to external users
+        send_debug("settings_reload_error", {"error": str(e)})
+        return jsonify({"status": "error", "message": "Failed to reload settings"}), 500
 
 @app.route('/resolve_errors', methods=['POST'])
 def resolve_errors():
