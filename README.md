@@ -32,6 +32,7 @@ docker-compose -f docker-compose.multi.yml up -d
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- **[SETTINGS_MANAGEMENT.md](SETTINGS_MANAGEMENT.md)** - Manage settings through dashboard
 - **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
 - **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
 - **[admin-dashboard/README.md](admin-dashboard/README.md)** - Admin dashboard features
@@ -42,9 +43,10 @@ docker-compose -f docker-compose.multi.yml up -d
 ### Admin Dashboard
 1. **Multi-Branch Management** - Monitor all three branches from one dashboard
 2. **User Management** - Create sub-accounts with branch-specific permissions
-3. **Branch Control** - Enable/disable branches with confirmation and SMS notifications
-4. **Real-Time Status** - Live status updates for each branch (auto-refresh every 30s)
-5. **Permission System** - Granular control over view, trigger, and disable permissions
+3. **Settings Management** - Edit Twilio and notification settings through web UI
+4. **Branch Control** - Enable/disable branches with confirmation and SMS notifications
+5. **Real-Time Status** - Live status updates for each branch (auto-refresh every 30s)
+6. **Permission System** - Granular control over view, trigger, and disable permissions
 
 ### Each Branch Instance
 - Independent Twilio configuration

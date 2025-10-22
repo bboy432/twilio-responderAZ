@@ -20,6 +20,7 @@ services:
       - RECIPIENT_PHONES=${TUC_RECIPIENT_PHONES}
       - RECIPIENT_EMAILS=${TUC_RECIPIENT_EMAILS}
       - DEBUG_WEBHOOK_URL=${TUC_DEBUG_WEBHOOK_URL}
+      - ADMIN_DASHBOARD_URL=http://admin-dashboard:5000
     volumes:
       - tuc_logs:/app/logs
     networks:
@@ -44,6 +45,7 @@ services:
       - RECIPIENT_PHONES=${POC_RECIPIENT_PHONES}
       - RECIPIENT_EMAILS=${POC_RECIPIENT_EMAILS}
       - DEBUG_WEBHOOK_URL=${POC_DEBUG_WEBHOOK_URL}
+      - ADMIN_DASHBOARD_URL=http://admin-dashboard:5000
     volumes:
       - poc_logs:/app/logs
     networks:
@@ -68,6 +70,7 @@ services:
       - RECIPIENT_PHONES=${REX_RECIPIENT_PHONES}
       - RECIPIENT_EMAILS=${REX_RECIPIENT_EMAILS}
       - DEBUG_WEBHOOK_URL=${REX_DEBUG_WEBHOOK_URL}
+      - ADMIN_DASHBOARD_URL=http://admin-dashboard:5000
     volumes:
       - rex_logs:/app/logs
     networks:

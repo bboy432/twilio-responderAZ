@@ -80,6 +80,17 @@ def init_db():
         last_check TIMESTAMP
     )''')
     
+    # Branch settings table
+    c.execute('''CREATE TABLE IF NOT EXISTS branch_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        branch TEXT NOT NULL,
+        setting_key TEXT NOT NULL,
+        setting_value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_by TEXT,
+        UNIQUE(branch, setting_key)
+    )''')
+    
     # Initialize branch statuses
     for branch in BRANCHES.keys():
         c.execute('''INSERT OR IGNORE INTO branch_status (branch, is_enabled, last_check) 
@@ -160,6 +171,56 @@ def set_branch_status(branch, enabled, username):
     
     conn.commit()
     conn.close()
+
+
+def get_branch_settings(branch):
+    """Get all settings for a branch"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    c = conn.cursor()
+    
+    c.execute('''SELECT setting_key, setting_value FROM branch_settings WHERE branch = ?''', (branch,))
+    settings = {row[0]: row[1] for row in c.fetchall()}
+    conn.close()
+    
+    return settings
+
+
+def update_branch_setting(branch, key, value, username):
+    """Update a single setting for a branch"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    c = conn.cursor()
+    
+    c.execute('''INSERT OR REPLACE INTO branch_settings (branch, setting_key, setting_value, updated_at, updated_by)
+                 VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)''', (branch, key, value, username))
+    
+    conn.commit()
+    conn.close()
+
+
+def get_branch_settings_with_defaults(branch):
+    """Get settings for a branch with environment variable defaults"""
+    settings = get_branch_settings(branch)
+    
+    # Define default keys from environment variables
+    branch_upper = branch.upper()
+    default_keys = {
+        'TWILIO_ACCOUNT_SID': os.environ.get(f'{branch_upper}_TWILIO_ACCOUNT_SID', ''),
+        'TWILIO_AUTH_TOKEN': os.environ.get(f'{branch_upper}_TWILIO_AUTH_TOKEN', ''),
+        'TWILIO_PHONE_NUMBER': os.environ.get(f'{branch_upper}_TWILIO_PHONE_NUMBER', ''),
+        'TWILIO_AUTOMATED_NUMBER': os.environ.get(f'{branch_upper}_TWILIO_AUTOMATED_NUMBER', ''),
+        'TWILIO_TRANSFER_NUMBER': os.environ.get(f'{branch_upper}_TWILIO_TRANSFER_NUMBER', ''),
+        'TRANSFER_TARGET_PHONE_NUMBER': os.environ.get(f'{branch_upper}_TRANSFER_TARGET_PHONE_NUMBER', ''),
+        'RECIPIENT_PHONES': os.environ.get(f'{branch_upper}_RECIPIENT_PHONES', ''),
+        'RECIPIENT_EMAILS': os.environ.get(f'{branch_upper}_RECIPIENT_EMAILS', ''),
+        'DEBUG_WEBHOOK_URL': os.environ.get(f'{branch_upper}_DEBUG_WEBHOOK_URL', ''),
+    }
+    
+    # Merge with database settings (database overrides environment)
+    for key, default_value in default_keys.items():
+        if key not in settings:
+            settings[key] = default_value
+    
+    return settings
 
 
 def send_sms_notification(message):
@@ -453,6 +514,115 @@ def branch_dashboard(branch):
                          branch=branch_info,
                          status=status,
                          is_admin=session.get('is_admin', False))
+
+
+@app.route('/branch/<branch>/settings')
+@login_required
+def branch_settings(branch):
+    """Branch settings page"""
+    if branch not in BRANCHES:
+        flash('Invalid branch', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Check permissions
+    if not session.get('is_admin'):
+        perms = get_user_permissions(session['user_id'])
+        if branch not in perms or not perms[branch]['can_view']:
+            flash('Permission denied', 'error')
+            return redirect(url_for('dashboard'))
+    
+    branch_info = BRANCHES[branch]
+    settings = get_branch_settings_with_defaults(branch)
+    
+    return render_template('branch_settings.html',
+                         branch_key=branch,
+                         branch=branch_info,
+                         settings=settings,
+                         is_admin=session.get('is_admin', False))
+
+
+@app.route('/api/branch/<branch>/settings', methods=['GET'])
+@login_required
+def get_branch_settings_api(branch):
+    """Get settings for a branch"""
+    if branch not in BRANCHES:
+        return jsonify({'error': 'Invalid branch'}), 404
+    
+    # Check permissions
+    if not session.get('is_admin'):
+        perms = get_user_permissions(session['user_id'])
+        if branch not in perms or not perms[branch]['can_view']:
+            return jsonify({'error': 'Permission denied'}), 403
+    
+    settings = get_branch_settings_with_defaults(branch)
+    
+    # Mask sensitive values
+    masked_settings = {}
+    for key, value in settings.items():
+        if 'TOKEN' in key or 'SID' in key or 'PASSWORD' in key:
+            masked_settings[key] = '***' + value[-4:] if value else ''
+        else:
+            masked_settings[key] = value
+    
+    return jsonify(masked_settings)
+
+
+@app.route('/api/branch/<branch>/settings', methods=['POST'])
+@login_required
+def update_branch_settings_api(branch):
+    """Update settings for a branch"""
+    if branch not in BRANCHES:
+        return jsonify({'error': 'Invalid branch'}), 404
+    
+    # Check permissions - require admin for settings changes
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Admin access required to change settings'}), 403
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Update each setting
+    updated_keys = []
+    for key, value in data.items():
+        # Skip empty values for sensitive fields
+        if not value and (key.endswith('TOKEN') or key.endswith('SID')):
+            continue
+        
+        update_branch_setting(branch, key, value, session['username'])
+        updated_keys.append(key)
+    
+    # Trigger settings reload on the branch
+    try:
+        branch_url = BRANCHES[branch]['url']
+        reload_response = requests.post(f"{branch_url}/api/reload_settings", timeout=5)
+        if reload_response.status_code == 200:
+            print(f"Settings reloaded on {branch}")
+    except Exception as e:
+        print(f"Failed to reload settings on {branch}: {e}")
+    
+    # Send notification
+    branch_name = BRANCHES[branch]['name']
+    message = f"INFO: {branch_name} settings updated by {session['username']} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    send_sms_notification(message)
+    
+    return jsonify({
+        'success': True, 
+        'message': f'Settings updated for {branch_name}',
+        'updated_keys': updated_keys
+    })
+
+
+@app.route('/api/internal/branch/<branch>/settings', methods=['GET'])
+def internal_branch_settings(branch):
+    """Internal endpoint for branches to fetch their settings (no auth required for internal network)"""
+    if branch not in BRANCHES:
+        return jsonify({'error': 'Invalid branch'}), 404
+    
+    settings = get_branch_settings_with_defaults(branch)
+    
+    # Return all settings (including sensitive ones) since this is internal
+    return jsonify(settings)
 
 
 if __name__ == '__main__':

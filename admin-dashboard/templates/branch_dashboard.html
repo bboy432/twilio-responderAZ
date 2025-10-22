@@ -78,6 +78,10 @@
                 🔄 Refresh
             </button>
             
+            <a href="{{ url_for('branch_settings', branch=branch_key) }}" class="btn btn-primary">
+                ⚙️ Settings
+            </a>
+            
             {% if is_admin %}
                 {% if status.enabled %}
                 <button class="btn btn-danger" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')">

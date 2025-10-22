@@ -88,6 +88,7 @@ try:
     RECIPIENT_EMAILS = os.environ.get('RECIPIENT_EMAILS', '')
     DEBUG_WEBHOOK_URL = os.environ.get('DEBUG_WEBHOOK_URL', '')
     BRANCH_NAME = os.environ.get('BRANCH_NAME', 'default')
+    ADMIN_DASHBOARD_URL = os.environ.get('ADMIN_DASHBOARD_URL', 'http://admin-dashboard:5000')
     
     # Debug line to check if RECIPIENT_PHONES is being loaded
     send_debug("env_debug", {"RECIPIENT_PHONES": os.environ.get('RECIPIENT_PHONES'), "BRANCH_NAME": BRANCH_NAME})
@@ -100,6 +101,58 @@ except Exception as e:
     print(f"CRITICAL ERROR: Could not load configuration from environment variables: {e}")
     send_debug("config_load_error", {"error": str(e)})
     exit()
+
+
+# Global settings cache
+_settings_cache = {}
+_settings_last_updated = None
+
+
+def load_settings_from_admin():
+    """Load settings from the admin dashboard database"""
+    global _settings_cache, _settings_last_updated
+    
+    try:
+        # Try to fetch settings from admin dashboard
+        response = requests.get(f"{ADMIN_DASHBOARD_URL}/api/internal/branch/{BRANCH_NAME}/settings", timeout=5)
+        if response.status_code == 200:
+            settings = response.json()
+            _settings_cache = settings
+            _settings_last_updated = datetime.now()
+            send_debug("settings_loaded_from_admin", {"branch": BRANCH_NAME, "keys": list(settings.keys())})
+            return settings
+    except Exception as e:
+        send_debug("settings_load_error", {"error": str(e), "using_env_vars": True})
+    
+    # Fallback to environment variables
+    return None
+
+
+def get_setting(key, default=''):
+    """Get a setting value, checking cache first, then environment variables"""
+    global _settings_cache, _settings_last_updated
+    
+    # Refresh cache every 5 minutes
+    if _settings_last_updated is None or (datetime.now() - _settings_last_updated).seconds > 300:
+        load_settings_from_admin()
+    
+    # Check cache first
+    if _settings_cache and key in _settings_cache:
+        return _settings_cache[key]
+    
+    # Fallback to environment variable
+    return os.environ.get(key, default)
+
+
+def get_twilio_client():
+    """Get Twilio client with current settings"""
+    account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
+    auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
+    return Client(account_sid, auth_token)
+
+
+# Initialize settings on startup
+load_settings_from_admin()
 
 # --- Contact Mapping ---
 KNOWN_CONTACTS = {
@@ -337,13 +390,13 @@ def format_final_email(emergency_data):
     return subject, body
 
 def send_sms_to_all_recipients(client, sms_message):
-    recipients_str = os.environ.get('RECIPIENT_PHONES', '')
+    recipients_str = get_setting('RECIPIENT_PHONES', os.environ.get('RECIPIENT_PHONES', ''))
     
     if DEBUG_WEBHOOK_URL:
         debug_data = {
             "event": "sms_attempt",
             "recipients_from_env": recipients_str,
-            "twilio_number": TWILIO_AUTOMATED_NUMBER,
+            "twilio_number": get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER),
             "message": sms_message
         }
         requests.post(DEBUG_WEBHOOK_URL, json=debug_data)
@@ -355,6 +408,8 @@ def send_sms_to_all_recipients(client, sms_message):
 
     phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
     
+    automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+    
     for phone_number in phone_numbers:
         try:
             if not phone_number.startswith('+'):
@@ -362,7 +417,7 @@ def send_sms_to_all_recipients(client, sms_message):
                 if DEBUG_WEBHOOK_URL:
                     requests.post(DEBUG_WEBHOOK_URL, json={"event": "number_formatted", "number": phone_number})
             
-            message = client.messages.create(body=sms_message, from_=TWILIO_AUTOMATED_NUMBER, to=phone_number)
+            message = client.messages.create(body=sms_message, from_=automated_number, to=phone_number)
             if DEBUG_WEBHOOK_URL:
                 requests.post(DEBUG_WEBHOOK_URL, json={"event": "sms_sent", "to": phone_number, "sid": message.sid})
         except Exception as e:
@@ -376,13 +431,15 @@ def make_emergency_call(emergency_id, emergency_data):
         "emergency_data": emergency_data
     })
     try:
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        client = get_twilio_client()
         technician_number = emergency_data.get('technician_number')
+        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+        
         send_debug("twilio_client_created", {"technician_number": technician_number})
         
         # Send SMS
         sms_text = format_emergency_sms(emergency_data)
-        client.messages.create(body=sms_text, from_=TWILIO_AUTOMATED_NUMBER, to=technician_number)
+        client.messages.create(body=sms_text, from_=automated_number, to=technician_number)
         send_debug("primary_sms_sent", {"to": technician_number})
         send_sms_to_all_recipients(client, sms_text)
 
@@ -390,7 +447,7 @@ def make_emergency_call(emergency_id, emergency_data):
         message = format_emergency_message(emergency_data)
         call = client.calls.create(
             twiml=f'<Response><Pause length="2"/><Say>{message}</Say><Hangup /></Response>',
-            to=technician_number, from_=TWILIO_AUTOMATED_NUMBER,
+            to=technician_number, from_=automated_number,
             status_callback=f"{public_url}/technician_call_ended?emergency_id={emergency_id}",
             status_callback_event=['completed']
         )
@@ -461,6 +518,21 @@ def status_page():
 def api_status():
     status, status_message = get_simple_status()
     return jsonify({"status": status, "message": status_message})
+
+
+@app.route('/api/reload_settings', methods=['POST'])
+def reload_settings():
+    """Reload settings from admin dashboard"""
+    try:
+        settings = load_settings_from_admin()
+        if settings:
+            return jsonify({"status": "success", "message": "Settings reloaded successfully", "keys": list(settings.keys())}), 200
+        else:
+            return jsonify({"status": "success", "message": "Using environment variables"}), 200
+    except Exception as e:
+        # Log the full error internally but don't expose to external users
+        send_debug("settings_reload_error", {"error": str(e)})
+        return jsonify({"status": "error", "message": "Failed to reload settings"}), 500
 
 @app.route('/resolve_errors', methods=['POST'])
 def resolve_errors():
@@ -678,8 +750,13 @@ def connect_technician_to_customer(emergency_id, technician_number):
             "known_contact": KNOWN_CONTACTS.get(technician_number, 'Unknown')
         })
         
+        # Get current settings
+        account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
+        auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
+        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+        
         # Validate configuration
-        if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_AUTOMATED_NUMBER]):
+        if not all([account_sid, auth_token, automated_number]):
             send_debug("config_error", {"message": "Missing required Twilio configuration"})
             raise ValueError("Missing required Twilio configuration")
             
@@ -688,7 +765,7 @@ def connect_technician_to_customer(emergency_id, technician_number):
             send_debug("validation_error", {"message": f"Invalid technician number format: {technician_number}"})
             raise ValueError(f"Invalid technician number format: {technician_number}")
             
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        client = Client(account_sid, auth_token)
         send_debug("twilio_client_created", {"for": "customer_connection"})
         
         # Create TwiML to connect technician to the queue
@@ -706,7 +783,7 @@ def connect_technician_to_customer(emergency_id, technician_number):
         call = client.calls.create(
             twiml=dequeue_twiml,
             to=technician_number,
-            from_=TWILIO_AUTOMATED_NUMBER,
+            from_=automated_number,
             status_callback=f"{public_url}/conference_status?emergency_id={emergency_id}",
             status_callback_event=['completed']
         )
