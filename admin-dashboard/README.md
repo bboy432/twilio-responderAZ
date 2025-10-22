@@ -50,6 +50,9 @@ The admin dashboard provides centralized monitoring and management of all Twilio
 - `can_view` - View permission flag
 - `can_trigger` - Trigger emergency permission flag
 - `can_disable` - Enable/disable branch permission flag
+- `can_edit_basic_settings` - Edit basic settings permission flag
+- `can_edit_advanced_settings` - Edit advanced settings permission flag
+- `can_restart` - Restart container permission flag
 
 ### Branch Status Table
 - `branch` - Primary key (tuc, poc, rex)
@@ -65,6 +68,7 @@ The admin dashboard provides centralized monitoring and management of all Twilio
 - Can create and delete users
 - Can modify user permissions
 - Can enable/disable all branches
+- Can restart any branch container
 - Access to user management interface
 
 ### Regular Users
@@ -72,6 +76,7 @@ The admin dashboard provides centralized monitoring and management of all Twilio
 - Can view branches they have access to
 - Can trigger emergencies if permitted
 - Can enable/disable branches if permitted
+- Can restart branch containers if permitted
 - Cannot create or manage other users
 
 ## Permission Types
@@ -91,6 +96,13 @@ The admin dashboard provides centralized monitoring and management of all Twilio
 - Receive confirmation dialogs
 - Trigger SMS notifications on changes
 
+### Restart Permission
+- Restart Docker container for a specific branch
+- Temporarily interrupts service (10-30 seconds)
+- Requires double confirmation
+- Sends SMS notification to administrator
+- Useful for applying configuration changes or resolving issues
+
 ## API Endpoints
 
 ### Authentication
@@ -106,6 +118,7 @@ The admin dashboard provides centralized monitoring and management of all Twilio
 - `GET /api/branch/<branch>/status` - Get branch status (JSON)
 - `POST /api/branch/<branch>/disable` - Disable a branch
 - `POST /api/branch/<branch>/enable` - Enable a branch
+- `POST /api/branch/<branch>/restart` - Restart a branch container (requires confirmation)
 
 ### User Management (Admin Only)
 - `GET /users` - User management page

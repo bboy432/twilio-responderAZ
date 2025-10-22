@@ -80,6 +80,10 @@
                             <input type="checkbox" name="perm_{{ branch_key }}_edit_advanced">
                             Edit Advanced Settings (Twilio credentials, numbers)
                         </label>
+                        <label>
+                            <input type="checkbox" name="perm_{{ branch_key }}_restart">
+                            Restart Container
+                        </label>
                     </div>
                     {% endfor %}
                 </div>
@@ -98,7 +102,8 @@
                 T = Trigger Emergencies | 
                 D = Disable/Enable Branch | 
                 B = Edit Basic Settings | 
-                A = Edit Advanced Settings
+                A = Edit Advanced Settings |
+                R = Restart Container
             </div>
             <table>
                 <thead>
@@ -134,6 +139,7 @@
                                         {% if perms.can_disable %}D{% endif %}
                                         {% if perms.can_edit_basic_settings %}B{% endif %}
                                         {% if perms.can_edit_advanced_settings %}A{% endif %}
+                                        {% if perms.can_restart %}R{% endif %}
                                     </div>
                                 {% endfor %}
                             {% endif %}

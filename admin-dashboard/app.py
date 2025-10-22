@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import secrets
+import subprocess
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
@@ -94,6 +95,7 @@ def init_db():
         can_disable INTEGER DEFAULT 0,
         can_edit_basic_settings INTEGER DEFAULT 0,
         can_edit_advanced_settings INTEGER DEFAULT 0,
+        can_restart INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id),
         UNIQUE(user_id, branch)
     )''')
@@ -106,6 +108,11 @@ def init_db():
     
     try:
         c.execute('ALTER TABLE user_permissions ADD COLUMN can_edit_advanced_settings INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        c.execute('ALTER TABLE user_permissions ADD COLUMN can_restart INTEGER DEFAULT 0')
     except sqlite3.OperationalError:
         pass  # Column already exists
     
@@ -168,7 +175,7 @@ def get_user_permissions(user_id):
     c = conn.cursor()
     
     c.execute('''SELECT branch, can_view, can_trigger, can_disable, 
-                 can_edit_basic_settings, can_edit_advanced_settings 
+                 can_edit_basic_settings, can_edit_advanced_settings, can_restart
                  FROM user_permissions WHERE user_id = ?''', (user_id,))
     permissions = {}
     for row in c.fetchall():
@@ -177,7 +184,8 @@ def get_user_permissions(user_id):
             'can_trigger': bool(row[2]),
             'can_disable': bool(row[3]),
             'can_edit_basic_settings': bool(row[4]) if len(row) > 4 else False,
-            'can_edit_advanced_settings': bool(row[5]) if len(row) > 5 else False
+            'can_edit_advanced_settings': bool(row[5]) if len(row) > 5 else False,
+            'can_restart': bool(row[6]) if len(row) > 6 else False
         }
     
     conn.close()
@@ -461,6 +469,68 @@ def enable_branch(branch):
     return jsonify({'success': True, 'message': f'{branch_name} branch enabled'})
 
 
+def restart_container(branch):
+    """Restart a Docker container for a specific branch"""
+    try:
+        # Get the container name from docker-compose.multi.yml naming convention
+        container_name = f"twilio_responder_{branch}"
+        
+        # Try to restart the container using docker CLI
+        result = subprocess.run(
+            ['docker', 'restart', container_name],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            return True, f"Container {container_name} restarted successfully"
+        else:
+            # Log the actual error internally but don't expose to user
+            error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+            print(f"Container restart failed for {container_name}: {error_msg}", flush=True)
+            return False, "Failed to restart container. Please contact administrator."
+    except subprocess.TimeoutExpired:
+        return False, "Restart operation timed out"
+    except FileNotFoundError:
+        return False, "Docker CLI not available in this environment"
+    except Exception as e:
+        # Log the actual error internally but don't expose details to user
+        print(f"Unexpected error during restart: {str(e)}", flush=True)
+        return False, "An unexpected error occurred. Please contact administrator."
+
+
+@app.route('/api/branch/<branch>/restart', methods=['POST'])
+@login_required
+def restart_branch(branch):
+    """Restart a branch container"""
+    if branch not in BRANCHES:
+        return jsonify({'error': 'Invalid branch'}), 404
+    
+    # Check permissions
+    if not session.get('is_admin'):
+        perms = get_user_permissions(session['user_id'])
+        if branch not in perms or not perms[branch].get('can_restart', False):
+            return jsonify({'error': 'Permission denied'}), 403
+    
+    confirm = request.json.get('confirm', False)
+    if not confirm:
+        return jsonify({'error': 'Confirmation required'}), 400
+    
+    # Perform restart
+    success, message = restart_container(branch)
+    
+    if success:
+        # Send SMS notification
+        branch_name = BRANCHES[branch]['name']
+        notification_message = f"INFO: {branch_name} branch container has been RESTARTED by {session['username']} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        send_sms_notification(notification_message)
+        
+        return jsonify({'success': True, 'message': message})
+    else:
+        return jsonify({'error': message}), 500
+
+
 @app.route('/users')
 @admin_required
 def users():
@@ -513,14 +583,16 @@ def create_user():
                 can_disable = request.form.get(f'perm_{branch}_disable') == 'on'
                 can_edit_basic = request.form.get(f'perm_{branch}_edit_basic') == 'on'
                 can_edit_advanced = request.form.get(f'perm_{branch}_edit_advanced') == 'on'
+                can_restart = request.form.get(f'perm_{branch}_restart') == 'on'
                 
                 c.execute('''INSERT INTO user_permissions 
                              (user_id, branch, can_view, can_trigger, can_disable, 
-                              can_edit_basic_settings, can_edit_advanced_settings) 
-                             VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                              can_edit_basic_settings, can_edit_advanced_settings, can_restart) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
                          (user_id, branch, 1 if can_view else 0, 
                           1 if can_trigger else 0, 1 if can_disable else 0,
-                          1 if can_edit_basic else 0, 1 if can_edit_advanced else 0))
+                          1 if can_edit_basic else 0, 1 if can_edit_advanced else 0,
+                          1 if can_restart else 0))
         
         conn.commit()
         flash(f'User {username} created successfully', 'success')
@@ -571,11 +643,17 @@ def branch_dashboard(branch):
     branch_info = BRANCHES[branch]
     status = get_branch_status(branch)
     
+    # Get user permissions for restart button
+    user_perms = {}
+    if not session.get('is_admin'):
+        user_perms = get_user_permissions(session['user_id'])
+    
     return render_template('branch_dashboard.html',
                          branch_key=branch,
                          branch=branch_info,
                          status=status,
-                         is_admin=session.get('is_admin', False))
+                         is_admin=session.get('is_admin', False),
+                         user_permissions=user_perms)
 
 
 @app.route('/branch/<branch>/settings')

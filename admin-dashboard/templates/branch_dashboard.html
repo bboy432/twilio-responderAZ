@@ -82,6 +82,12 @@
                 ⚙️ Settings
             </a>
             
+            {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_restart) %}
+            <button class="btn btn-warning" onclick="restartBranch('{{ branch_key }}', '{{ branch.name }}')">
+                🔄 Restart Container
+            </button>
+            {% endif %}
+            
             {% if is_admin %}
                 {% if status.enabled %}
                 <button class="btn btn-danger" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')">
