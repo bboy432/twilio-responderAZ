@@ -625,13 +625,15 @@ def internal_branch_settings(branch):
     return jsonify(settings)
 
 
+# Initialize database on module load (runs with both gunicorn and direct execution)
+# Ensure data directory exists
+os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+
+# Initialize database
+init_db()
+
+
 if __name__ == '__main__':
-    # Ensure data directory exists
-    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
-    
-    # Initialize database
-    init_db()
-    
     print("=" * 60)
     print("Admin Dashboard Starting")
     print(f"Database: {DATABASE_PATH}")
