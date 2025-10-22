@@ -58,24 +58,24 @@
                     </div>
                     
                     <div class="branch-actions">
-                        <a href="{{ url_for('branch_dashboard', branch=branch_key) }}" class="btn btn-secondary btn-sm">
+                        <a href="{{ url_for('branch_dashboard', branch=branch_key) }}" class="btn btn-secondary btn-sm" data-tooltip="View detailed dashboard for {{ branch.name }}">
                             View Dashboard
                         </a>
                         
                         {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_disable) %}
                             {% if branch.enabled %}
-                            <button class="btn btn-danger btn-sm" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                            <button class="btn btn-danger btn-sm" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')" data-tooltip="Disable {{ branch.name }} branch - stops emergency processing">
                                 Disable
                             </button>
                             {% else %}
-                            <button class="btn btn-success btn-sm" onclick="enableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                            <button class="btn btn-success btn-sm" onclick="enableBranch('{{ branch_key }}', '{{ branch.name }}')" data-tooltip="Enable {{ branch.name }} branch - resumes emergency processing">
                                 Enable
                             </button>
                             {% endif %}
                         {% endif %}
                         
                         {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_restart) %}
-                        <button class="btn btn-warning btn-sm" onclick="restartBranch('{{ branch_key }}', '{{ branch.name }}')">
+                        <button class="btn btn-warning btn-sm" onclick="restartBranch('{{ branch_key }}', '{{ branch.name }}')" data-tooltip="Restart {{ branch.name }} container - resolves stuck states">
                             🔄 Restart
                         </button>
                         {% endif %}
@@ -92,7 +92,7 @@
         </div>
 
         <div class="refresh-section">
-            <button class="btn btn-primary" onclick="refreshDashboard()">
+            <button class="btn btn-primary" onclick="refreshDashboard()" data-tooltip="Refresh status for all branches">
                 🔄 Refresh Status
             </button>
             <span class="last-updated">Last updated: <span id="lastUpdate">{{ now.strftime('%Y-%m-%d %H:%M:%S') if now else 'Never' }}</span></span>

@@ -136,27 +136,27 @@
         </div>
 
         <div class="actions-section">
-            <button class="btn btn-secondary" onclick="window.location.reload()">
+            <button class="btn btn-secondary" onclick="window.location.reload()" data-tooltip="Refresh this page">
                 🔄 Refresh
             </button>
             
-            <a href="{{ url_for('branch_settings', branch=branch_key) }}" class="btn btn-primary">
+            <a href="{{ url_for('branch_settings', branch=branch_key) }}" class="btn btn-primary" data-tooltip="Edit {{ branch.name }} settings">
                 ⚙️ Settings
             </a>
             
             {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_restart) %}
-            <button class="btn btn-warning" onclick="restartBranch('{{ branch_key }}', '{{ branch.name }}')">
+            <button class="btn btn-warning" onclick="restartBranch('{{ branch_key }}', '{{ branch.name }}')" data-tooltip="Restart {{ branch.name }} container - resolves stuck states">
                 🔄 Restart Container
             </button>
             {% endif %}
             
             {% if is_admin %}
                 {% if status.enabled %}
-                <button class="btn btn-danger" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                <button class="btn btn-danger" onclick="disableBranch('{{ branch_key }}', '{{ branch.name }}')" data-tooltip="Disable {{ branch.name }} branch - stops emergency processing">
                     Disable Branch
                 </button>
                 {% else %}
-                <button class="btn btn-success" onclick="enableBranch('{{ branch_key }}', '{{ branch.name }}')">
+                <button class="btn btn-success" onclick="enableBranch('{{ branch_key }}', '{{ branch.name }}')" data-tooltip="Enable {{ branch.name }} branch - resumes emergency processing">
                     Enable Branch
                 </button>
                 {% endif %}
