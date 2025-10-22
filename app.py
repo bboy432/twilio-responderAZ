@@ -699,7 +699,8 @@ def webhook_listener():
             # Call failed, clear the emergency state and return error
             clear_active_emergency()
             send_debug("webhook_call_failed", {"emergency_id": emergency_id, "error": message})
-            return jsonify({"status": "error", "message": f"Failed to initiate emergency call: {message}"}), 500
+            # Don't expose detailed error messages to external users for security
+            return jsonify({"status": "error", "message": "Failed to initiate emergency call. Please check configuration and try again."}), 500
         
         return jsonify({"status": "success", "message": "Emergency call initiated successfully"}), 200
 
@@ -707,7 +708,8 @@ def webhook_listener():
         # Make sure to clear emergency state on any error
         clear_active_emergency()
         send_debug("webhook_processing_error", {"error": str(e)})
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # Don't expose detailed error messages to external users for security
+        return jsonify({"status": "error", "message": "An error occurred processing the emergency request."}), 500
 
 
 @app.route('/sms_reply', methods=['POST'])

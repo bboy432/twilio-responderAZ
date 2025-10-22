@@ -28,11 +28,12 @@ The system now validates:
 - Specific error messages identify the exact problem
 - Emergency state is cleared on failure (prevents stuck state)
 - Detailed debug events are logged for troubleshooting
+- **Security**: Error details are logged internally but generic messages are returned to API callers
 
 ### 3. Better API Responses
 
 - Success responses include confirmation message
-- Error responses include specific failure reason
+- Error responses use generic messages for security (details in logs)
 - HTTP status codes properly reflect the outcome:
   - 200: Success
   - 400: Bad request (validation error)
@@ -97,9 +98,11 @@ Expected response:
 ```json
 {
   "status": "error",
-  "message": "Failed to initiate emergency call: Invalid technician number format (missing country code): 5551234567"
+  "message": "Failed to initiate emergency call. Please check configuration and try again."
 }
 ```
+
+**Note**: For security reasons, detailed error messages are only available in server logs, not in API responses. Use `docker logs` or `DEBUG_WEBHOOK_URL` to see specific errors.
 
 #### 3. Test with missing phone:
 
