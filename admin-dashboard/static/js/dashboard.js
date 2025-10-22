@@ -98,6 +98,78 @@ function restartBranch(branchKey, branchName) {
     });
 }
 
+function triggerEmergency(event, branchKey, branchName) {
+    event.preventDefault();
+    
+    // Get form data
+    const techPhone = document.getElementById('techPhone').value.trim();
+    const customerName = document.getElementById('customerName').value.trim();
+    const callbackNumber = document.getElementById('callbackNumber').value.trim();
+    const address = document.getElementById('address').value.trim();
+    const description = document.getElementById('description').value.trim();
+    
+    // Validation
+    if (!techPhone.startsWith('+')) {
+        alert('Error: Technician phone must start with + (e.g., +12084039927)');
+        return;
+    }
+    
+    if (!callbackNumber.startsWith('+')) {
+        alert('Error: Callback number must start with + (e.g., +15551234567)');
+        return;
+    }
+    
+    // Confirmation
+    if (!confirm(`⚠️ TRIGGER EMERGENCY: Are you sure you want to trigger an emergency on ${branchName} branch?\n\nTechnician ${techPhone} will be notified via SMS and call.\n\nCustomer: ${customerName}\nAddress: ${address}\n\nAn SMS notification will be sent to the administrator.`)) {
+        return;
+    }
+    
+    // Show processing message
+    const submitButton = event.target.querySelector('button[type="submit"]');
+    const originalText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = '⏳ Triggering emergency...';
+    
+    // Prepare payload
+    const payload = {
+        chosen_phone: techPhone,
+        customer_name: customerName,
+        user_stated_callback_number: callbackNumber,
+        incident_address: address,
+        emergency_description_text: description
+    };
+    
+    fetch(`/api/branch/${branchKey}/trigger`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+        
+        if (data.success) {
+            alert(`✓ ${data.message}\n\nThe emergency has been triggered successfully.\n\nAn SMS notification has been sent to the administrator.`);
+            // Clear the form
+            document.getElementById('emergencyForm').reset();
+            // Reload the page to show updated status
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            alert(`✗ Failed to trigger emergency:\n${data.error}`);
+        }
+    })
+    .catch(error => {
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+        alert(`✗ Error triggering emergency: ${error}`);
+    });
+}
+
 // Auto-refresh status every 30 seconds
 let autoRefreshInterval;
 

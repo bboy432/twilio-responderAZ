@@ -555,6 +555,69 @@ def restart_branch(branch):
         return jsonify({'error': message}), 500
 
 
+@app.route('/api/branch/<branch>/trigger', methods=['POST'])
+@login_required
+def trigger_emergency(branch):
+    """Trigger an emergency on a branch"""
+    if branch not in BRANCHES:
+        return jsonify({'error': 'Invalid branch'}), 404
+    
+    # Check permissions
+    if not session.get('is_admin'):
+        perms = get_user_permissions(session['user_id'])
+        if branch not in perms or not perms[branch].get('can_trigger', False):
+            return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get request data
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Validate required fields
+    required_fields = ['chosen_phone', 'customer_name', 'user_stated_callback_number', 
+                      'incident_address', 'emergency_description_text']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    # Forward the request to the branch instance
+    try:
+        branch_url = BRANCHES[branch]['url']
+        response = requests.post(
+            f"{branch_url}/webhook",
+            json=data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Send SMS notification
+            branch_name = BRANCHES[branch]['name']
+            notification_message = f"INFO: Emergency triggered on {branch_name} branch by {session['username']} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            send_sms_notification(notification_message)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Emergency triggered successfully on {branch_name}',
+                'data': result
+            })
+        else:
+            error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
+            return jsonify({
+                'error': error_data.get('message', f'Branch returned error: {response.status_code}'),
+                'status_code': response.status_code
+            }), response.status_code
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Request to branch timed out'}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Could not connect to branch instance'}), 503
+    except Exception as e:
+        print(f"Error triggering emergency on {branch}: {e}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
 @app.route('/users')
 @admin_required
 def users():
