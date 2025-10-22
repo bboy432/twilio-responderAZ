@@ -555,6 +555,69 @@ def restart_branch(branch):
         return jsonify({'error': message}), 500
 
 
+@app.route('/api/branch/<branch>/trigger', methods=['POST'])
+@login_required
+def trigger_emergency(branch):
+    """Trigger an emergency on a branch"""
+    if branch not in BRANCHES:
+        return jsonify({'error': 'Invalid branch'}), 404
+    
+    # Check permissions
+    if not session.get('is_admin'):
+        perms = get_user_permissions(session['user_id'])
+        if branch not in perms or not perms[branch].get('can_trigger', False):
+            return jsonify({'error': 'Permission denied'}), 403
+    
+    # Get request data
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Validate required fields
+    required_fields = ['chosen_phone', 'customer_name', 'user_stated_callback_number', 
+                      'incident_address', 'emergency_description_text']
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+    
+    # Forward the request to the branch instance
+    try:
+        branch_url = BRANCHES[branch]['url']
+        response = requests.post(
+            f"{branch_url}/webhook",
+            json=data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Send SMS notification
+            branch_name = BRANCHES[branch]['name']
+            notification_message = f"INFO: Emergency triggered on {branch_name} branch by {session['username']} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            send_sms_notification(notification_message)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Emergency triggered successfully on {branch_name}',
+                'data': result
+            })
+        else:
+            error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
+            return jsonify({
+                'error': error_data.get('message', f'Branch returned error: {response.status_code}'),
+                'status_code': response.status_code
+            }), response.status_code
+            
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Request to branch timed out'}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({'error': 'Could not connect to branch instance'}), 503
+    except Exception as e:
+        print(f"Error triggering emergency on {branch}: {e}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
 @app.route('/users')
 @admin_required
 def users():
@@ -625,6 +688,63 @@ def create_user():
     finally:
         conn.close()
     
+    return redirect(url_for('users'))
+
+
+@app.route('/users/<int:user_id>/edit', methods=['POST'])
+@admin_required
+def edit_user(user_id):
+    """Update user permissions"""
+    if user_id == session['user_id']:
+        flash('Cannot edit your own account permissions', 'error')
+        return redirect(url_for('users'))
+    
+    conn = sqlite3.connect(DATABASE_PATH)
+    c = conn.cursor()
+    
+    # Check if user exists
+    c.execute('SELECT username, is_admin FROM users WHERE id = ?', (user_id,))
+    user = c.fetchone()
+    if not user:
+        flash('User not found', 'error')
+        conn.close()
+        return redirect(url_for('users'))
+    
+    username = user[0]
+    is_admin = user[1]
+    
+    # Update admin status if changed
+    new_is_admin = request.form.get('is_admin') == 'on'
+    if new_is_admin != bool(is_admin):
+        c.execute('UPDATE users SET is_admin = ? WHERE id = ?', (1 if new_is_admin else 0, user_id))
+    
+    # If not admin, update permissions for each branch
+    if not new_is_admin:
+        for branch in BRANCHES.keys():
+            can_view = request.form.get(f'perm_{branch}_view') == 'on'
+            can_trigger = request.form.get(f'perm_{branch}_trigger') == 'on'
+            can_disable = request.form.get(f'perm_{branch}_disable') == 'on'
+            can_edit_basic = request.form.get(f'perm_{branch}_edit_basic') == 'on'
+            can_edit_advanced = request.form.get(f'perm_{branch}_edit_advanced') == 'on'
+            can_restart = request.form.get(f'perm_{branch}_restart') == 'on'
+            
+            # Update or insert permissions
+            c.execute('''INSERT OR REPLACE INTO user_permissions 
+                         (user_id, branch, can_view, can_trigger, can_disable, 
+                          can_edit_basic_settings, can_edit_advanced_settings, can_restart) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                     (user_id, branch, 1 if can_view else 0, 
+                      1 if can_trigger else 0, 1 if can_disable else 0,
+                      1 if can_edit_basic else 0, 1 if can_edit_advanced else 0,
+                      1 if can_restart else 0))
+    else:
+        # If promoted to admin, remove all specific permissions
+        c.execute('DELETE FROM user_permissions WHERE user_id = ?', (user_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash(f'User {username} updated successfully', 'success')
     return redirect(url_for('users'))
 
 

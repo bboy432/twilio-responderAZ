@@ -368,6 +368,13 @@
                 {% else %}
                 <div class="btn-group sticky-actions">
                     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary" data-tooltip="Save all changes to {{ branch.name }} settings">💾 Save Settings</button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" data-tooltip="Return to dashboard without saving">Cancel</a>
+                </div>
+                {% else %}
+                <div class="btn-group">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" data-tooltip="Return to dashboard">Back to Dashboard</a>
                 </div>
                 {% endif %}
             </form>
