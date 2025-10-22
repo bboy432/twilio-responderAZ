@@ -621,16 +621,52 @@ def reload_settings():
         send_debug("settings_reload_error", {"error": str(e)})
         return jsonify({"status": "error", "message": "Failed to reload settings"}), 500
 
-@app.route('/api/logs', methods=['GET'])
+@app.route('/api/logs', methods=['GET', 'DELETE'])
 def api_logs():
-    """Returns logs from the application.
+    """Returns or clears logs from the application.
     
+    GET method:
     Query parameters:
     - all: Returns all logs (no parameter value needed, just ?all)
     - recent: Returns recent N entries (e.g., ?recent=10)
     
-    Returns JSON with timeline events or raw log content.
+    DELETE method:
+    Clears/archives the current log file by renaming it with a timestamp.
+    Returns JSON with status of the operation.
     """
+    if request.method == 'DELETE':
+        # Clear/archive logs
+        try:
+            log_path = LOG_PATH
+            if os.path.exists(log_path):
+                # Archive the log file with timestamp
+                archive_path = os.path.join(
+                    os.path.dirname(log_path), 
+                    f"app.log.cleared.{int(time.time())}"
+                )
+                os.rename(log_path, archive_path)
+                send_debug("logs_cleared_via_api", {
+                    "archive_path": archive_path,
+                    "timestamp": datetime.now().isoformat()
+                })
+                return jsonify({
+                    "status": "success",
+                    "message": "Logs cleared successfully",
+                    "archive_path": archive_path
+                }), 200
+            else:
+                return jsonify({
+                    "status": "success",
+                    "message": "No log file to clear"
+                }), 200
+        except Exception as e:
+            send_debug("api_logs_clear_error", {"error": str(e)})
+            return jsonify({
+                "status": "error",
+                "message": "An error occurred while clearing logs"
+            }), 500
+    
+    # GET method - retrieve logs
     try:
         # Parse query parameters
         if 'all' in request.args:
@@ -665,10 +701,11 @@ def api_logs():
             # No parameters provided - return usage info
             return jsonify({
                 "status": "error",
-                "message": "Missing query parameter. Use ?all or ?recent=N",
+                "message": "Missing query parameter. Use ?all or ?recent=N, or use DELETE method to clear logs",
                 "examples": [
                     "/api/logs?all - Returns all log entries",
-                    "/api/logs?recent=10 - Returns 10 most recent log entries"
+                    "/api/logs?recent=10 - Returns 10 most recent log entries",
+                    "DELETE /api/logs - Clears all logs (archives to timestamped file)"
                 ]
             }), 400
             

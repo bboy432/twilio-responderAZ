@@ -179,9 +179,10 @@ Dashboard usage:
 Dashboard usage:
 - Poll `/api/status` to show live health (e.g., green/yellow/red). Fetch `/status` or parse `parse_log_for_timeline()` output via `/debug_firehose` for recent events.
 
-### 7) GET /api/logs
-Retrieves application logs in JSON format for monitoring and debugging.
-- Method: GET
+### 7) GET|DELETE /api/logs
+Retrieves or clears application logs in JSON format for monitoring and debugging.
+
+**GET method:**
 - Query parameters:
   - `?all` — Returns all parsed log entries
   - `?recent=N` — Returns the N most recent log entries (e.g., `?recent=10`)
@@ -203,10 +204,26 @@ Retrieves application logs in JSON format for monitoring and debugging.
   ```
 - Error responses: 400 (invalid parameters), 404 (no log file), 500 (server error)
 
+**DELETE method:**
+- Clears/archives all logs by renaming the log file with a timestamp
+- No query parameters required
+- Response format:
+  ```json
+  {
+    "status": "success",
+    "message": "Logs cleared successfully",
+    "archive_path": "/app/logs/app.log.cleared.1234567890"
+  }
+  ```
+- The archived logs are preserved for future reference
+- Error responses: 500 (server error)
+
 Dashboard usage:
 - Use `GET /api/logs?recent=20` to display recent activity in a timeline view.
 - Use `GET /api/logs?all` to retrieve complete log history for analysis.
+- Use `DELETE /api/logs` to clear logs after troubleshooting or to start fresh.
 - The endpoint works without `DEBUG_WEBHOOK_URL` configured, making it suitable for production use.
+- Logs are archived (not deleted), so you can recover them if needed.
 
 ### 8) GET|POST /debug_firehose
 Sends the app logs and parsed timeline to a webhook URL. This is useful for on-demand debugging or for pulling recent events into a dashboard.
