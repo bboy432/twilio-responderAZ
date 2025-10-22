@@ -26,6 +26,9 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
 .nav-brand h1 {
@@ -419,6 +422,25 @@ body {
     padding: 1.5rem;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Sticky actions for settings pages */
+.sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 999;
+    margin-top: 2rem;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    border-top: 2px solid #667eea;
+}
+
+.sticky-actions.btn-group {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
 }
 
 /* Refresh Section */
