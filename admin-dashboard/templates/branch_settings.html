@@ -120,6 +120,7 @@
                         <input type="text" id="TWILIO_ACCOUNT_SID" name="TWILIO_ACCOUNT_SID" 
                                value="{{ settings.get('TWILIO_ACCOUNT_SID', '') }}" 
                                class="sensitive-field"
+                               autocomplete="off"
                                placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
                         <div class="help-text">Your Twilio Account SID from the console</div>
                     </div>
@@ -141,7 +142,7 @@
                         <label for="TWILIO_PHONE_NUMBER">Twilio Phone Number</label>
                         <input type="tel" id="TWILIO_PHONE_NUMBER" name="TWILIO_PHONE_NUMBER" 
                                value="{{ settings.get('TWILIO_PHONE_NUMBER', '') }}" 
-                               placeholder="+15205551234">
+                               placeholder="5555555555">
                         <div class="help-text">Primary Twilio number for incoming calls</div>
                     </div>
 
@@ -149,7 +150,7 @@
                         <label for="TWILIO_AUTOMATED_NUMBER">Automated Number</label>
                         <input type="tel" id="TWILIO_AUTOMATED_NUMBER" name="TWILIO_AUTOMATED_NUMBER" 
                                value="{{ settings.get('TWILIO_AUTOMATED_NUMBER', '') }}" 
-                               placeholder="+15205551234">
+                               placeholder="5555555555">
                         <div class="help-text">Number used for automated calls to technicians</div>
                     </div>
 
@@ -157,7 +158,7 @@
                         <label for="TWILIO_TRANSFER_NUMBER">Transfer Number</label>
                         <input type="tel" id="TWILIO_TRANSFER_NUMBER" name="TWILIO_TRANSFER_NUMBER" 
                                value="{{ settings.get('TWILIO_TRANSFER_NUMBER', '') }}" 
-                               placeholder="+15205551234">
+                               placeholder="5555555555">
                         <div class="help-text">Number used for call transfers</div>
                     </div>
 
@@ -165,7 +166,7 @@
                         <label for="TRANSFER_TARGET_PHONE_NUMBER">Transfer Target Number</label>
                         <input type="tel" id="TRANSFER_TARGET_PHONE_NUMBER" name="TRANSFER_TARGET_PHONE_NUMBER" 
                                value="{{ settings.get('TRANSFER_TARGET_PHONE_NUMBER', '') }}" 
-                               placeholder="+15205551234">
+                               placeholder="5555555555">
                         <div class="help-text">Default number to transfer calls to</div>
                     </div>
                 </div>
@@ -177,7 +178,7 @@
                         <label for="RECIPIENT_PHONES">Recipient Phone Numbers</label>
                         <input type="text" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" 
                                value="{{ settings.get('RECIPIENT_PHONES', '') }}" 
-                               placeholder="+15205551234,+15205555678">
+                               placeholder="5555555555,5555555556">
                         <div class="help-text">Comma-separated list of SMS recipients</div>
                     </div>
 
@@ -204,7 +205,7 @@
 
                 <div class="btn-group">
                     <button type="submit" class="btn btn-primary">💾 Save Settings</button>
-                    <a href="{{ url_for('branch_dashboard', branch=branch_key) }}" class="btn btn-secondary">Cancel</a>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
                 </div>
             </form>
         </div>
@@ -245,6 +246,11 @@
                     
                     // Clear password field after successful save
                     document.getElementById('TWILIO_AUTH_TOKEN').value = '';
+                    
+                    // Redirect to dashboard after 1 second
+                    setTimeout(() => {
+                        window.location.href = '{{ url_for("dashboard") }}';
+                    }, 1000);
                 } else {
                     alertContainer.innerHTML = `
                         <div class="alert alert-error">
