@@ -239,16 +239,20 @@ async function loadTimeline() {
     }
 }
 
-// Auto-refresh status
+// Auto-refresh status and timeline
 function startAutoRefresh() {
-    // Refresh status every 30 seconds
-    setInterval(refreshStatus, 30000);
+    // Refresh status and timeline every 30 seconds
+    setInterval(() => {
+        refreshStatus();
+        loadTimeline();
+    }, 30000);
 }
 
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     refreshStatus();
+    loadTimeline();
     startAutoRefresh();
     
     // Add enter key support for forms
