@@ -353,30 +353,6 @@ def admin_required(f):
 
 
 # Routes
-@app.route('/favicon.ico')
-def favicon():
-    from flask import send_from_directory
-    favicon_dir = os.path.abspath(os.path.join(app.root_path, '..'))
-    return send_from_directory(favicon_dir, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
-@app.route('/favicon.svg')
-def favicon_svg():
-    from flask import send_from_directory
-    favicon_dir = os.path.abspath(os.path.join(app.root_path, '..'))
-    return send_from_directory(favicon_dir, 'favicon.svg', mimetype='image/svg+xml')
-
-@app.route('/favicon-32x32.png')
-def favicon_32():
-    from flask import send_from_directory
-    favicon_dir = os.path.abspath(os.path.join(app.root_path, '..'))
-    return send_from_directory(favicon_dir, 'favicon-32x32.png', mimetype='image/png')
-
-@app.route('/favicon-16x16.png')
-def favicon_16():
-    from flask import send_from_directory
-    favicon_dir = os.path.abspath(os.path.join(app.root_path, '..'))
-    return send_from_directory(favicon_dir, 'favicon-16x16.png', mimetype='image/png')
-
 @app.route('/')
 @login_required
 def dashboard():
