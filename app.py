@@ -441,7 +441,22 @@ def send_sms_to_all_recipients(client, sms_message):
         send_debug("sms_recipients_not_set", {"message": "RECIPIENT_PHONES not set"})
         return
 
-    phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
+    # Parse recipients - support both JSON format (with labels) and comma-separated format
+    phone_numbers = []
+    try:
+        # Try to parse as JSON first (new format with labels)
+        recipients_data = json.loads(recipients_str)
+        if isinstance(recipients_data, list):
+            # Extract phone numbers from JSON array of {name, number} objects
+            phone_numbers = [entry.get('number', '').strip() for entry in recipients_data if entry.get('number')]
+            send_debug("recipients_parsed_json", {"count": len(phone_numbers), "recipients": phone_numbers})
+        else:
+            # Invalid JSON format, fall back to comma-separated
+            phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
+    except (json.JSONDecodeError, ValueError):
+        # Not JSON, use comma-separated format (backward compatibility)
+        phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
+        send_debug("recipients_parsed_csv", {"count": len(phone_numbers), "recipients": phone_numbers})
     
     automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
     
