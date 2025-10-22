@@ -301,6 +301,12 @@
         document.getElementById('settingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            // Get the submit button and disable it to prevent double-submission
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = '⏳ Saving...';
+            
             const formData = new FormData(e.target);
             const data = {};
             
@@ -358,6 +364,10 @@
                     `;
                     // Scroll to top to show error
                     window.scrollTo({ top: 0, behavior: 'smooth' });
+                    
+                    // Re-enable button on error
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
                 }
             } catch (error) {
                 const alertContainer = document.getElementById('alert-container');
@@ -368,6 +378,10 @@
                 `;
                 // Scroll to top to show error
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+                // Re-enable button on error
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
             }
         });
     </script>
