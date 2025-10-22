@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # The .dockerignore file will prevent config and logs from being copied
 COPY . .
 
+# Create the logs directory so it's available on startup
+RUN mkdir -p /app/logs && chmod 755 /app/logs
+
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
