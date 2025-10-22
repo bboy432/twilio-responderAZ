@@ -6,6 +6,30 @@ This guide explains how to manage branch settings through the admin dashboard in
 
 Previously, all Twilio and notification settings had to be configured as environment variables in Portainer. Now, authorized users can edit these settings directly through the admin dashboard web interface. Settings are stored in the database and automatically synchronized with the branch instances.
 
+## Permission Levels
+
+Settings are now categorized into two permission levels:
+
+### Basic Settings
+Users with "Edit Basic Settings" permission can modify:
+- **Recipient Phone Numbers**: SMS notification recipients
+- **Recipient Emails**: Email notification recipients  
+- **Feature Toggles**:
+  - Enable/Disable SMS Text Notifications
+  - Enable/Disable Email Notifications
+  - Enable/Disable Automated Calls
+  - Enable/Disable Call Transfer
+
+### Advanced Settings
+Users with "Edit Advanced Settings" permission (or admins) can modify:
+- **Twilio Credentials**: Account SID and Auth Token
+- **Phone Numbers**:
+  - Primary Twilio Phone Number
+  - Automated Call Number
+  - Transfer Number
+  - Transfer Target Number
+- **Debug Settings**: Debug Webhook URL
+
 ## Features
 
 ### 1. Web-Based Settings Editor
@@ -22,7 +46,10 @@ Previously, all Twilio and notification settings had to be configured as environ
 - SMS notifications sent to admin on settings changes
 
 ### 3. Security
-- Only admin users can modify settings
+- Admin users have full access to all settings
+- Non-admin users can be granted specific permission levels:
+  - **Basic Settings Permission**: Edit notification recipients and feature toggles
+  - **Advanced Settings Permission**: Edit Twilio credentials and phone numbers
 - Sensitive fields (tokens, credentials) are masked in the UI
 - Password fields can be left blank to keep existing values
 - All changes are logged with username and timestamp
@@ -34,31 +61,41 @@ Previously, all Twilio and notification settings had to be configured as environ
 
 ## Accessing Settings
 
-### For Admin Users
+### For All Users
 
 1. Log in to the admin dashboard at https://axiom-emergencies.com
-2. Click on any branch card (Tucson, Pocatello, or Rexburg)
+2. Click on any branch card (Tucson, Pocatello, or Rexburg) that you have access to
 3. Click the "⚙️ Settings" button
-4. Edit the settings as needed
-5. Click "💾 Save Settings"
+4. You will see sections based on your permissions:
+   - Users with basic settings permission see notification recipients and feature toggles
+   - Users with advanced settings permission see Twilio credentials and phone numbers
+   - Admin users see all settings
+5. Edit the settings you have permission to modify
+6. Click "💾 Save Settings"
 
 ### Settings Page Sections
 
-#### 🔐 Twilio Credentials
+#### 🔐 Twilio Credentials (Advanced Settings)
 - **Account SID**: Your Twilio Account SID (starts with AC...)
 - **Auth Token**: Your Twilio Auth Token (leave blank to keep current)
 
-#### 📞 Phone Numbers
+#### 📞 Phone Numbers (Advanced Settings)
 - **Twilio Phone Number**: Primary number for incoming calls
 - **Automated Number**: Number used for automated calls to technicians
 - **Transfer Number**: Number used for call transfers
 - **Transfer Target Number**: Default number to transfer calls to
 
-#### 📨 Notification Settings
+#### 📨 Notification Settings (Basic Settings)
 - **Recipient Phone Numbers**: Comma-separated list of SMS recipients
 - **Recipient Emails**: Comma-separated list of email recipients
 
-#### 🐛 Debug Settings
+#### 🎛️ Feature Toggles (Basic Settings)
+- **Enable SMS Text Notifications**: Turn SMS notifications on/off
+- **Enable Email Notifications**: Turn email notifications on/off
+- **Enable Automated Calls**: Turn automated calls to technicians on/off
+- **Enable Call Transfer**: Turn call transfer functionality on/off
+
+#### 🐛 Debug Settings (Advanced Settings)
 - **Debug Webhook URL**: Optional webhook URL for debugging events
 
 ## Technical Details
@@ -87,16 +124,19 @@ GET /api/branch/<branch>/settings
 ```
 Returns settings with sensitive values masked.
 
-#### Update Settings (Admin Only)
+#### Update Settings (Admin or Authorized Users)
 ```
 POST /api/branch/<branch>/settings
 Content-Type: application/json
 
 {
   "TWILIO_PHONE_NUMBER": "+15205551234",
-  "RECIPIENT_PHONES": "+15205551234,+15205555678"
+  "RECIPIENT_PHONES": "+15205551234,+15205555678",
+  "enable_texts": "true"
 }
 ```
+
+Returns 200 OK if user has permission to edit the settings, 403 Forbidden otherwise.
 
 #### Internal Settings Endpoint (No Auth)
 ```
@@ -186,7 +226,13 @@ For new deployments:
 
 ## Security Considerations
 
-- Only admin users can modify settings
+- Admin users have full access to all settings
+- Non-admin users can be granted granular permissions:
+  - View branch dashboards
+  - Trigger emergency notifications
+  - Enable/disable branches
+  - Edit basic settings (notification recipients, feature toggles)
+  - Edit advanced settings (Twilio credentials, phone numbers)
 - All changes are logged with username and timestamp
 - Sensitive fields are masked in the UI
 - Settings are transmitted over HTTPS in production
