@@ -40,7 +40,13 @@ except ImportError as e:
 # Helper function for debug webhooks
 def send_debug(event_type, data=None):
     # Get the current webhook URL from settings (can be updated via admin dashboard)
-    webhook_url = get_setting('DEBUG_WEBHOOK_URL', DEBUG_WEBHOOK_URL) if '_settings_cache' in globals() else DEBUG_WEBHOOK_URL
+    # Use direct cache check to avoid circular dependency with get_setting()
+    # Check if _settings_cache exists (it's defined later in the module)
+    try:
+        webhook_url = _settings_cache.get('DEBUG_WEBHOOK_URL', DEBUG_WEBHOOK_URL) if _settings_cache else DEBUG_WEBHOOK_URL
+    except NameError:
+        # _settings_cache not yet defined (during module initialization)
+        webhook_url = DEBUG_WEBHOOK_URL
     
     if not webhook_url:
         # Still persist to local log even if no webhook is configured
