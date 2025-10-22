@@ -63,6 +63,11 @@ ADVANCED_SETTINGS = [
     'DEBUG_WEBHOOK_URL'
 ]
 
+# Admin-only settings (only full admin can edit, not delegatable)
+ADMIN_ONLY_SETTINGS = [
+    'enable_google_maps_link'
+]
+
 
 # Database functions
 def init_db():
@@ -183,6 +188,10 @@ def can_edit_setting(setting_key, user_is_admin, user_permissions):
     """Check if user can edit a specific setting"""
     if user_is_admin:
         return True
+    
+    # Admin-only settings cannot be edited by non-admin users
+    if setting_key in ADMIN_ONLY_SETTINGS:
+        return False
     
     if setting_key in BASIC_SETTINGS:
         return user_permissions.get('can_edit_basic_settings', False)
@@ -599,7 +608,8 @@ def branch_settings(branch):
                          can_edit_basic=session.get('is_admin') or branch_perms.get('can_edit_basic_settings', False),
                          can_edit_advanced=session.get('is_admin') or branch_perms.get('can_edit_advanced_settings', False),
                          basic_settings=BASIC_SETTINGS,
-                         advanced_settings=ADVANCED_SETTINGS)
+                         advanced_settings=ADVANCED_SETTINGS,
+                         admin_only_settings=ADMIN_ONLY_SETTINGS)
 
 
 @app.route('/api/branch/<branch>/settings', methods=['GET'])

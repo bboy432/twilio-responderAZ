@@ -266,7 +266,24 @@
                 </div>
                 {% endif %}
 
-                {% if can_edit_basic or can_edit_advanced %}
+                {% if is_admin %}
+                <div class="form-section">
+                    <h3>👑 Admin-Only Settings</h3>
+                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ These settings can only be modified by full administrators</p>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="enable_google_maps_link" name="enable_google_maps_link" 
+                                   {% if settings.get('enable_google_maps_link', 'false') == 'true' %}checked{% endif %}
+                                   style="width: auto; margin-right: 10px;">
+                            <span>Include Google Maps Link in SMS</span>
+                        </label>
+                        <div class="help-text">When enabled, SMS messages to technicians will include a Google Maps link to the incident address</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if can_edit_basic or can_edit_advanced or is_admin %}
                 <div class="btn-group">
                     <button type="submit" class="btn btn-primary">💾 Save Settings</button>
                     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
