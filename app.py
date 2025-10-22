@@ -293,7 +293,10 @@ def parse_log_for_timeline():
     except FileNotFoundError:
         events.append({"title": "Log file not found", "timestamp": datetime.now().strftime('%b %d, %I:%M:%S %p'), "icon": "❓", "details": "The app.log file will be created on the first event.", "status": "success", "raw_timestamp": datetime.now()})
     except Exception as e:
-        events.append({"title": "Error parsing log", "timestamp": datetime.now().strftime('%b %d, %I:%M:%S %p'), "icon": "⚠️", "details": str(e), "status": "error", "raw_timestamp": datetime.now()})
+        # Log the actual error internally for debugging
+        send_debug("log_parsing_error", {"error": str(e), "type": str(type(e))})
+        # Return a generic error message to users (don't expose exception details)
+        events.append({"title": "Error parsing log", "timestamp": datetime.now().strftime('%b %d, %I:%M:%S %p'), "icon": "⚠️", "details": "An error occurred while parsing the log file.", "status": "error", "raw_timestamp": datetime.now()})
 
     return sorted(events, key=lambda x: x['raw_timestamp'], reverse=True)
 
