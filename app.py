@@ -12,6 +12,7 @@ import threading
 import csv
 import re
 import socket
+from urllib.parse import quote_plus
 
 import uuid
 
@@ -373,11 +374,26 @@ def format_emergency_sms(emergency_data):
     try:
         technician_number = emergency_data.get('technician_number')
         target_name = KNOWN_CONTACTS.get(technician_number, "Maintenance Team")
-        return (
+        incident_address = emergency_data.get('incident_address', 'N/A')
+        
+        # Build the base message
+        message = (
             f"❗Emergency Alert❗ from Axiom Property Management\nTo: {target_name}\n\n"
             f"Customer: {emergency_data.get('customer_name', 'N/A')}\nCallback: {emergency_data.get('user_stated_callback_number', 'N/A')}\n"
-            f"Address: {emergency_data.get('incident_address', 'N/A')}\n\nEmergency Details:\n{emergency_data.get('emergency_description_text', 'N/A')}"
+            f"Address: {incident_address}\n"
         )
+        
+        # Check if Google Maps link should be included
+        enable_maps_link = get_setting('enable_google_maps_link', 'false')
+        if enable_maps_link == 'true' and incident_address and incident_address != 'N/A':
+            # URL encode the address and create Google Maps link
+            encoded_address = quote_plus(incident_address)
+            maps_link = f"https://maps.google.com/?q={encoded_address}"
+            message += f"📍 Location: {maps_link}\n"
+        
+        message += f"\nEmergency Details:\n{emergency_data.get('emergency_description_text', 'N/A')}"
+        
+        return message
     except KeyError as e:
         send_debug("format_sms_keyerror", {"error": str(e)})
         return "Emergency Alert - Details unavailable"
