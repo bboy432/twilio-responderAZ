@@ -55,6 +55,15 @@ curl -s "$BRANCH_URL/api/logs?recent=invalid" | jq '.'
 echo ""
 echo ""
 
+# Example 6: Clear logs
+echo "6. Clear/archive logs using DELETE"
+echo "   Command: curl -X DELETE $BRANCH_URL/api/logs"
+echo "   Expected: Logs archived to timestamped file"
+echo "   ---"
+curl -s -X DELETE "$BRANCH_URL/api/logs" | jq '.'
+echo ""
+echo ""
+
 echo "=========================================="
 echo "Integration Examples"
 echo "=========================================="
@@ -73,6 +82,11 @@ if logs['status'] == 'success':
         print(f"{log['timestamp']} - {log['title']}")
         print(f"  Status: {log['status']}")
         print(f"  Details: {log['details'][:100]}...")
+
+# Clear logs when needed
+clear_response = requests.delete('http://localhost:5000/api/logs')
+if clear_response.json()['status'] == 'success':
+    print("Logs cleared successfully")
 EOF
 
 echo ""
@@ -87,6 +101,12 @@ if ($response.status -eq "success") {
         Write-Host "  Status: $($log.status)"
     }
 }
+
+# Clear logs when needed
+$clearResponse = Invoke-RestMethod -Uri "http://localhost:5000/api/logs" -Method Delete
+if ($clearResponse.status -eq "success") {
+    Write-Host "Logs cleared successfully"
+}
 EOF
 
 echo ""
@@ -97,7 +117,9 @@ echo "Key Benefits"
 echo "=========================================="
 echo "✓ Works without DEBUG_WEBHOOK_URL configured"
 echo "✓ Retrieve logs programmatically via HTTP GET"
+echo "✓ Clear logs programmatically via HTTP DELETE"
 echo "✓ Filter by count (?recent=N) or get all (?all)"
 echo "✓ JSON response format for easy integration"
 echo "✓ Secure - no stack trace exposure"
+echo "✓ Logs are archived (not deleted) when cleared"
 echo ""
