@@ -32,6 +32,7 @@ docker-compose -f docker-compose.multi.yml up -d
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- **[DEBUGGING_CALLS.md](DEBUGGING_CALLS.md)** - 🆕 Troubleshoot call failures
 - **[SETTINGS_MANAGEMENT.md](SETTINGS_MANAGEMENT.md)** - Manage settings through dashboard
 - **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
 - **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
