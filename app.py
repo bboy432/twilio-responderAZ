@@ -236,11 +236,10 @@ def get_simple_status():
     except Exception:
         return "Error", "Could not read log file to determine status." 
 def get_last_n_calls(n=3):
-    """Parses the log file to get the last N handled calls."""
+    """Parses the log file to get the last N timeline events."""
     all_events = parse_log_for_timeline()
-    # Filter for events that represent a call being handled
-    call_events = [e for e in all_events if e['title'] == "Webhook: Emergency Triggered"]
-    return call_events[:n]
+    # Return all timeline events, not just webhook events
+    return all_events[:n]
 
 def parse_log_for_timeline():
     events = []
@@ -586,14 +585,14 @@ def status_page():
     </div>
 
     <div class="call-history">
-        <h2>Recent Call History</h2>
+        <h2>Recent Activity Timeline</h2>
         {% for call in last_3_calls %}
             <div class="call">
-                <div class="call-time">{{ call.timestamp }}</div>
+                <div class="call-time">{{ call.icon }} {{ call.timestamp }}</div>
                 <div class="call-details">{{ call.details }}</div>
             </div>
         {% else %}
-            <p>No calls have been handled yet.</p>
+            <p>No activity yet.</p>
         {% endfor %}
     </div>
 </body>
