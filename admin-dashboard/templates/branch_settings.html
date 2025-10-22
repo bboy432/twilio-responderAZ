@@ -81,6 +81,66 @@
         .sensitive-field {
             background-color: #fff9e6;
         }
+        .collapsible-section {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .collapsible-header {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+            user-select: none;
+        }
+        .collapsible-header:hover {
+            background-color: #e9ecef;
+        }
+        .collapsible-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+        .collapsible-toggle {
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+        .collapsible-toggle.open {
+            transform: rotate(180deg);
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            padding: 0 20px;
+        }
+        .collapsible-content.open {
+            max-height: 2000px;
+            padding: 20px;
+            transition: max-height 0.5s ease-in;
+        }
+        .mode-badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+            font-weight: normal;
+        }
+        .mode-badge.basic {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .mode-badge.advanced {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .mode-badge.admin {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 <body>
@@ -117,172 +177,222 @@
         <div class="settings-form">
             <form id="settingsForm">
                 {% if can_edit_basic %}
-                <div class="form-section">
-                    <h3>📨 Basic Settings - Notification Recipients</h3>
-                    <p class="subtitle" style="color: #666; font-size: 14px; margin-bottom: 15px;">Configure who receives notifications</p>
-                    
-                    <div class="form-group">
-                        <label for="RECIPIENT_PHONES">Recipient Phone Numbers</label>
-                        <input type="text" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" 
-                               value="{{ settings.get('RECIPIENT_PHONES', '') }}" 
-                               placeholder="5555555555,5555555556">
-                        <div class="help-text">Comma-separated list of SMS recipients</div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>📨 Basic Settings - Notification Recipients<span class="mode-badge basic">BASIC</span></h3>
+                            <p class="subtitle" style="color: #666; font-size: 12px; margin: 5px 0 0 0;">Configure who receives notifications</p>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
                     </div>
+                    <div class="collapsible-content">
+                        <div class="form-group">
+                            <label for="RECIPIENT_PHONES">Recipient Phone Numbers</label>
+                            <input type="text" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" 
+                                   value="{{ settings.get('RECIPIENT_PHONES', '') }}" 
+                                   placeholder="5555555555,5555555556">
+                            <div class="help-text">Comma-separated list of SMS recipients</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="RECIPIENT_EMAILS">Recipient Emails</label>
-                        <input type="text" id="RECIPIENT_EMAILS" name="RECIPIENT_EMAILS" 
-                               value="{{ settings.get('RECIPIENT_EMAILS', '') }}" 
-                               placeholder="admin@example.com,tech@example.com">
-                        <div class="help-text">Comma-separated list of email recipients</div>
+                        <div class="form-group">
+                            <label for="RECIPIENT_EMAILS">Recipient Emails</label>
+                            <input type="text" id="RECIPIENT_EMAILS" name="RECIPIENT_EMAILS" 
+                                   value="{{ settings.get('RECIPIENT_EMAILS', '') }}" 
+                                   placeholder="admin@example.com,tech@example.com">
+                            <div class="help-text">Comma-separated list of email recipients</div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <h3>🎛️ Basic Settings - Feature Toggles</h3>
-                    <p class="subtitle" style="color: #666; font-size: 14px; margin-bottom: 15px;">Enable or disable specific features</p>
-                    
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="enable_texts" name="enable_texts" 
-                                   {% if settings.get('enable_texts', 'true') == 'true' %}checked{% endif %}
-                                   style="width: auto; margin-right: 10px;">
-                            <span>Enable SMS Text Notifications</span>
-                        </label>
-                        <div class="help-text">Send SMS messages to recipient phones</div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>🎛️ Basic Settings - Feature Toggles<span class="mode-badge basic">BASIC</span></h3>
+                            <p class="subtitle" style="color: #666; font-size: 12px; margin: 5px 0 0 0;">Enable or disable specific features</p>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
                     </div>
+                    <div class="collapsible-content">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="enable_texts" name="enable_texts" 
+                                       {% if settings.get('enable_texts', 'true') == 'true' %}checked{% endif %}
+                                       style="width: auto; margin-right: 10px;">
+                                <span>Enable SMS Text Notifications</span>
+                            </label>
+                            <div class="help-text">Send SMS messages to recipient phones</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="enable_emails" name="enable_emails" 
-                                   {% if settings.get('enable_emails', 'true') == 'true' %}checked{% endif %}
-                                   style="width: auto; margin-right: 10px;">
-                            <span>Enable Email Notifications</span>
-                        </label>
-                        <div class="help-text">Send email notifications to recipient emails</div>
-                    </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="enable_emails" name="enable_emails" 
+                                       {% if settings.get('enable_emails', 'true') == 'true' %}checked{% endif %}
+                                       style="width: auto; margin-right: 10px;">
+                                <span>Enable Email Notifications</span>
+                            </label>
+                            <div class="help-text">Send email notifications to recipient emails</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="enable_auto_call" name="enable_auto_call" 
-                                   {% if settings.get('enable_auto_call', 'true') == 'true' %}checked{% endif %}
-                                   style="width: auto; margin-right: 10px;">
-                            <span>Enable Automated Calls</span>
-                        </label>
-                        <div class="help-text">Automatically call technicians on emergency</div>
-                    </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="enable_auto_call" name="enable_auto_call" 
+                                       {% if settings.get('enable_auto_call', 'true') == 'true' %}checked{% endif %}
+                                       style="width: auto; margin-right: 10px;">
+                                <span>Enable Automated Calls</span>
+                            </label>
+                            <div class="help-text">Automatically call technicians on emergency</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="enable_transfer_call" name="enable_transfer_call" 
-                                   {% if settings.get('enable_transfer_call', 'true') == 'true' %}checked{% endif %}
-                                   style="width: auto; margin-right: 10px;">
-                            <span>Enable Call Transfer</span>
-                        </label>
-                        <div class="help-text">Allow calls to be transferred to target number</div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="enable_transfer_call" name="enable_transfer_call" 
+                                       {% if settings.get('enable_transfer_call', 'true') == 'true' %}checked{% endif %}
+                                       style="width: auto; margin-right: 10px;">
+                                <span>Enable Call Transfer</span>
+                            </label>
+                            <div class="help-text">Allow calls to be transferred to target number</div>
+                        </div>
                     </div>
                 </div>
                 {% else %}
-                <div class="form-section">
-                    <h3>📨 Basic Settings</h3>
-                    <p style="color: #666; font-style: italic;">You do not have permission to edit basic settings.</p>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>📨 Basic Settings<span class="mode-badge basic">BASIC</span></h3>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <p style="color: #666; font-style: italic;">You do not have permission to edit basic settings.</p>
+                    </div>
                 </div>
                 {% endif %}
 
                 {% if can_edit_advanced %}
-                <div class="form-section">
-                    <h3>🔐 Advanced Settings - Twilio Credentials</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Changing these settings requires advanced permissions</p>
-                    
-                    <div class="form-group">
-                        <label for="TWILIO_ACCOUNT_SID">Account SID</label>
-                        <input type="text" id="TWILIO_ACCOUNT_SID" name="TWILIO_ACCOUNT_SID" 
-                               value="{{ settings.get('TWILIO_ACCOUNT_SID', '') }}" 
-                               class="sensitive-field"
-                               autocomplete="off"
-                               placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-                        <div class="help-text">Your Twilio Account SID from the console</div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>🔐 Advanced Settings - Twilio Credentials<span class="mode-badge advanced">ADVANCED</span></h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 12px; margin: 5px 0 0 0;">⚠️ Changing these settings requires advanced permissions</p>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
                     </div>
+                    <div class="collapsible-content">
+                        <div class="form-group">
+                            <label for="TWILIO_ACCOUNT_SID">Account SID</label>
+                            <input type="text" id="TWILIO_ACCOUNT_SID" name="TWILIO_ACCOUNT_SID" 
+                                   value="{{ settings.get('TWILIO_ACCOUNT_SID', '') }}" 
+                                   class="sensitive-field"
+                                   autocomplete="off"
+                                   placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                            <div class="help-text">Your Twilio Account SID from the console</div>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="TWILIO_AUTH_TOKEN">Auth Token</label>
-                        <input type="password" id="TWILIO_AUTH_TOKEN" name="TWILIO_AUTH_TOKEN" 
-                               value="{{ settings.get('TWILIO_AUTH_TOKEN', '') }}" 
-                               class="sensitive-field"
-                               placeholder="Leave blank to keep existing value">
-                        <div class="help-text">Your Twilio Auth Token (leave blank to keep current)</div>
-                    </div>
-                </div>
-
-                <div class="form-section">
-                    <h3>📞 Advanced Settings - Phone Numbers</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Twilio phone number configuration</p>
-                    
-                    <div class="form-group">
-                        <label for="TWILIO_PHONE_NUMBER">Twilio Phone Number</label>
-                        <input type="tel" id="TWILIO_PHONE_NUMBER" name="TWILIO_PHONE_NUMBER" 
-                               value="{{ settings.get('TWILIO_PHONE_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Primary Twilio number for incoming calls</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="TWILIO_AUTOMATED_NUMBER">Automated Number</label>
-                        <input type="tel" id="TWILIO_AUTOMATED_NUMBER" name="TWILIO_AUTOMATED_NUMBER" 
-                               value="{{ settings.get('TWILIO_AUTOMATED_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Number used for automated calls to technicians</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="TWILIO_TRANSFER_NUMBER">Transfer Number</label>
-                        <input type="tel" id="TWILIO_TRANSFER_NUMBER" name="TWILIO_TRANSFER_NUMBER" 
-                               value="{{ settings.get('TWILIO_TRANSFER_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Number used for call transfers</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="TRANSFER_TARGET_PHONE_NUMBER">Transfer Target Number</label>
-                        <input type="tel" id="TRANSFER_TARGET_PHONE_NUMBER" name="TRANSFER_TARGET_PHONE_NUMBER" 
-                               value="{{ settings.get('TRANSFER_TARGET_PHONE_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Default number to transfer calls to</div>
+                        <div class="form-group">
+                            <label for="TWILIO_AUTH_TOKEN">Auth Token</label>
+                            <input type="password" id="TWILIO_AUTH_TOKEN" name="TWILIO_AUTH_TOKEN" 
+                                   value="{{ settings.get('TWILIO_AUTH_TOKEN', '') }}" 
+                                   class="sensitive-field"
+                                   placeholder="Leave blank to keep existing value">
+                            <div class="help-text">Your Twilio Auth Token (leave blank to keep current)</div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <h3>🐛 Advanced Settings - Debug</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Debug and development settings</p>
-                    
-                    <div class="form-group">
-                        <label for="DEBUG_WEBHOOK_URL">Debug Webhook URL</label>
-                        <input type="url" id="DEBUG_WEBHOOK_URL" name="DEBUG_WEBHOOK_URL" 
-                               value="{{ settings.get('DEBUG_WEBHOOK_URL', '') }}" 
-                               placeholder="https://webhook.site/your-unique-id">
-                        <div class="help-text">Optional webhook URL for debugging events</div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>📞 Advanced Settings - Phone Numbers<span class="mode-badge advanced">ADVANCED</span></h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 12px; margin: 5px 0 0 0;">⚠️ Twilio phone number configuration</p>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="form-group">
+                            <label for="TWILIO_PHONE_NUMBER">Twilio Phone Number</label>
+                            <input type="tel" id="TWILIO_PHONE_NUMBER" name="TWILIO_PHONE_NUMBER" 
+                                   value="{{ settings.get('TWILIO_PHONE_NUMBER', '') }}" 
+                                   placeholder="5555555555">
+                            <div class="help-text">Primary Twilio number for incoming calls</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="TWILIO_AUTOMATED_NUMBER">Automated Number</label>
+                            <input type="tel" id="TWILIO_AUTOMATED_NUMBER" name="TWILIO_AUTOMATED_NUMBER" 
+                                   value="{{ settings.get('TWILIO_AUTOMATED_NUMBER', '') }}" 
+                                   placeholder="5555555555">
+                            <div class="help-text">Number used for automated calls to technicians</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="TWILIO_TRANSFER_NUMBER">Transfer Number</label>
+                            <input type="tel" id="TWILIO_TRANSFER_NUMBER" name="TWILIO_TRANSFER_NUMBER" 
+                                   value="{{ settings.get('TWILIO_TRANSFER_NUMBER', '') }}" 
+                                   placeholder="5555555555">
+                            <div class="help-text">Number used for call transfers</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="TRANSFER_TARGET_PHONE_NUMBER">Transfer Target Number</label>
+                            <input type="tel" id="TRANSFER_TARGET_PHONE_NUMBER" name="TRANSFER_TARGET_PHONE_NUMBER" 
+                                   value="{{ settings.get('TRANSFER_TARGET_PHONE_NUMBER', '') }}" 
+                                   placeholder="5555555555">
+                            <div class="help-text">Default number to transfer calls to</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>🐛 Advanced Settings - Debug<span class="mode-badge advanced">ADVANCED</span></h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 12px; margin: 5px 0 0 0;">⚠️ Debug and development settings</p>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="form-group">
+                            <label for="DEBUG_WEBHOOK_URL">Debug Webhook URL</label>
+                            <input type="url" id="DEBUG_WEBHOOK_URL" name="DEBUG_WEBHOOK_URL" 
+                                   value="{{ settings.get('DEBUG_WEBHOOK_URL', '') }}" 
+                                   placeholder="https://webhook.site/your-unique-id">
+                            <div class="help-text">Optional webhook URL for debugging events</div>
+                        </div>
                     </div>
                 </div>
                 {% else %}
-                <div class="form-section">
-                    <h3>🔐 Advanced Settings</h3>
-                    <p style="color: #666; font-style: italic;">You do not have permission to edit advanced settings (Twilio credentials, phone numbers, debug settings).</p>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>🔐 Advanced Settings<span class="mode-badge advanced">ADVANCED</span></h3>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <p style="color: #666; font-style: italic;">You do not have permission to edit advanced settings (Twilio credentials, phone numbers, debug settings).</p>
+                    </div>
                 </div>
                 {% endif %}
 
                 {% if is_admin %}
-                <div class="form-section">
-                    <h3>👑 Admin-Only Settings</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ These settings can only be modified by full administrators</p>
-                    
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="enable_google_maps_link" name="enable_google_maps_link" 
-                                   {% if settings.get('enable_google_maps_link', 'false') == 'true' %}checked{% endif %}
-                                   style="width: auto; margin-right: 10px;">
-                            <span>Include Google Maps Link in SMS</span>
-                        </label>
-                        <div class="help-text">When enabled, SMS messages to technicians will include a Google Maps link to the incident address</div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleSection(this)">
+                        <div>
+                            <h3>👑 Admin-Only Settings<span class="mode-badge admin">ADMIN</span></h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 12px; margin: 5px 0 0 0;">⚠️ These settings can only be modified by full administrators</p>
+                        </div>
+                        <span class="collapsible-toggle">▼</span>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="enable_google_maps_link" name="enable_google_maps_link" 
+                                       {% if settings.get('enable_google_maps_link', 'false') == 'true' %}checked{% endif %}
+                                       style="width: auto; margin-right: 10px;">
+                                <span>Include Google Maps Link in SMS</span>
+                            </label>
+                            <div class="help-text">When enabled, SMS messages to technicians will include a Google Maps link to the incident address</div>
+                        </div>
                     </div>
                 </div>
                 {% endif %}
@@ -302,6 +412,19 @@
     </div>
 
     <script>
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.collapsible-toggle');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                toggle.classList.remove('open');
+            } else {
+                content.classList.add('open');
+                toggle.classList.add('open');
+            }
+        }
+        
         document.getElementById('settingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -320,7 +443,7 @@
             }
             
             // Handle checkboxes (they need to be explicitly set to true/false)
-            const checkboxes = ['enable_texts', 'enable_emails', 'enable_auto_call', 'enable_transfer_call'];
+            const checkboxes = ['enable_texts', 'enable_emails', 'enable_auto_call', 'enable_transfer_call', 'enable_google_maps_link'];
             checkboxes.forEach(name => {
                 const checkbox = document.getElementById(name);
                 if (checkbox) {

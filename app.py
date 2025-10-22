@@ -577,6 +577,12 @@ def status_page():
         .call:last-child { border-bottom: none; }
         .call-time { font-weight: bold; margin-bottom: 8px; }
         .call-details { white-space: pre-wrap; font-family: monospace; background-color: #f8f9fa; padding: 10px; border-radius: 6px; }
+        .advanced-toggle { cursor: pointer; background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 14px; margin-top: 15px; transition: background-color 0.2s; }
+        .advanced-toggle:hover { background-color: #0056b3; }
+        .advanced-toggle:active { background-color: #004085; }
+        .advanced-section { display: none; margin-top: 20px; }
+        .advanced-section.show { display: block; }
+        .mode-indicator { font-size: 12px; color: #666; margin-top: 10px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -586,16 +592,43 @@ def status_page():
     </div>
 
     <div class="call-history">
-        <h2>Recent Call History</h2>
-        {% for call in last_3_calls %}
-            <div class="call">
-                <div class="call-time">{{ call.timestamp }}</div>
-                <div class="call-details">{{ call.details }}</div>
-            </div>
-        {% else %}
-            <p>No calls have been handled yet.</p>
-        {% endfor %}
+        <h2>📊 System Overview</h2>
+        <p class="mode-indicator">Viewing: Basic Mode</p>
+        
+        <button class="advanced-toggle" onclick="toggleAdvanced()">
+            <span id="toggleText">▼ Show Advanced Details</span>
+        </button>
+        
+        <div class="advanced-section" id="advancedSection">
+            <h3>Recent Call History</h3>
+            {% for call in last_3_calls %}
+                <div class="call">
+                    <div class="call-time">{{ call.timestamp }}</div>
+                    <div class="call-details">{{ call.details }}</div>
+                </div>
+            {% else %}
+                <p>No calls have been handled yet.</p>
+            {% endfor %}
+        </div>
     </div>
+    
+    <script>
+        function toggleAdvanced() {
+            const section = document.getElementById('advancedSection');
+            const toggleText = document.getElementById('toggleText');
+            const modeIndicator = document.querySelector('.mode-indicator');
+            
+            if (section.classList.contains('show')) {
+                section.classList.remove('show');
+                toggleText.textContent = '▼ Show Advanced Details';
+                modeIndicator.textContent = 'Viewing: Basic Mode';
+            } else {
+                section.classList.add('show');
+                toggleText.textContent = '▲ Hide Advanced Details';
+                modeIndicator.textContent = 'Viewing: Advanced Mode';
+            }
+        }
+    </script>
 </body>
 </html>
     """
