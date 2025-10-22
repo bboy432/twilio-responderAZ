@@ -61,6 +61,43 @@ function enableBranch(branchKey, branchName) {
     });
 }
 
+function restartBranch(branchKey, branchName) {
+    if (!confirm(`⚠️ RESTART CONTAINER: Are you sure you want to RESTART the ${branchName} branch container?\n\nThis will temporarily interrupt service for approximately 10-30 seconds while the container restarts.\n\nAny active emergency calls may be affected.\n\nAn SMS notification will be sent to the administrator.`)) {
+        return;
+    }
+    
+    // Second confirmation
+    if (!confirm(`FINAL CONFIRMATION: Restart ${branchName} container?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    // Show processing message
+    alert('Restarting container... Please wait. This may take 10-30 seconds.');
+    
+    fetch(`/api/branch/${branchKey}/restart`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ confirm: true })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✓ ${data.message}\n\nThe container has been restarted successfully.\n\nAn SMS notification has been sent.`);
+            // Wait a moment before reloading to give container time to start
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            alert(`Error: ${data.error || data.message}`);
+        }
+    })
+    .catch(error => {
+        alert(`Error: ${error}`);
+    });
+}
+
 // Auto-refresh status every 30 seconds
 let autoRefreshInterval;
 

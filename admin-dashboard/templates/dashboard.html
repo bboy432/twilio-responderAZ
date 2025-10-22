@@ -69,6 +69,12 @@
                             </button>
                             {% endif %}
                         {% endif %}
+                        
+                        {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_restart) %}
+                        <button class="btn btn-warning btn-sm" onclick="restartBranch('{{ branch_key }}', '{{ branch.name }}')">
+                            🔄 Restart
+                        </button>
+                        {% endif %}
                     </div>
                     
                     {% if not branch.enabled %}
