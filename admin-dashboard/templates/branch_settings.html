@@ -118,6 +118,32 @@
             max-height: 2000px;
             transition: max-height 0.5s ease;
         }
+        .phone-number-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: flex-start;
+        }
+        .phone-number-row input[name="phone_name"] {
+            flex: 1;
+            min-width: 150px;
+        }
+        .phone-number-row input[name="phone_number"] {
+            flex: 1;
+            min-width: 150px;
+        }
+        .phone-number-row button {
+            padding: 10px 15px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .phone-number-row button:hover {
+            background-color: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -160,10 +186,12 @@
                     
                     <div class="form-group">
                         <label for="RECIPIENT_PHONES">Recipient Phone Numbers</label>
-                        <input type="text" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" 
-                               value="{{ settings.get('RECIPIENT_PHONES', '') }}" 
-                               placeholder="5555555555,5555555556">
-                        <div class="help-text">Comma-separated list of SMS recipients</div>
+                        <div id="phone-numbers-container" style="margin-bottom: 10px;">
+                            <!-- Phone number entries will be added here by JavaScript -->
+                        </div>
+                        <button type="button" onclick="addPhoneNumberRow()" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">+ Add Phone Number</button>
+                        <input type="hidden" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" value="{{ settings.get('RECIPIENT_PHONES', '') }}">
+                        <div class="help-text">Add phone numbers with friendly names for easy identification</div>
                     </div>
 
                     <div class="form-group">
@@ -347,6 +375,83 @@
     </div>
 
     <script>
+        // Phone number management
+        let phoneNumberCounter = 0;
+        
+        function parseRecipientPhones(recipientPhonesValue) {
+            // Try to parse as JSON first (new format with labels)
+            try {
+                const parsed = JSON.parse(recipientPhonesValue);
+                if (Array.isArray(parsed)) {
+                    return parsed;
+                }
+            } catch (e) {
+                // Not JSON, fall back to comma-separated format
+            }
+            
+            // Parse comma-separated format (backward compatibility)
+            if (recipientPhonesValue && recipientPhonesValue.trim()) {
+                const phones = recipientPhonesValue.split(',').map(p => p.trim()).filter(p => p);
+                return phones.map(phone => ({ name: '', number: phone }));
+            }
+            
+            return [];
+        }
+        
+        function addPhoneNumberRow(name = '', number = '') {
+            const container = document.getElementById('phone-numbers-container');
+            const row = document.createElement('div');
+            row.className = 'phone-number-row';
+            row.id = `phone-row-${phoneNumberCounter}`;
+            
+            row.innerHTML = `
+                <input type="text" name="phone_name" placeholder="Name (e.g., John Doe)" value="${name}" />
+                <input type="tel" name="phone_number" placeholder="Phone (e.g., +15551234567)" value="${number}" />
+                <button type="button" onclick="removePhoneNumberRow('phone-row-${phoneNumberCounter}')">Remove</button>
+            `;
+            
+            container.appendChild(row);
+            phoneNumberCounter++;
+        }
+        
+        function removePhoneNumberRow(rowId) {
+            const row = document.getElementById(rowId);
+            if (row) {
+                row.remove();
+            }
+        }
+        
+        function collectPhoneNumbers() {
+            const rows = document.querySelectorAll('.phone-number-row');
+            const phoneNumbers = [];
+            
+            rows.forEach(row => {
+                const name = row.querySelector('input[name="phone_name"]').value.trim();
+                const number = row.querySelector('input[name="phone_number"]').value.trim();
+                
+                if (number) {  // Only include if phone number is provided
+                    phoneNumbers.push({ name: name, number: number });
+                }
+            });
+            
+            return phoneNumbers;
+        }
+        
+        // Initialize phone numbers on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const recipientPhonesValue = document.getElementById('RECIPIENT_PHONES').value;
+            const phoneNumbers = parseRecipientPhones(recipientPhonesValue);
+            
+            if (phoneNumbers.length > 0) {
+                phoneNumbers.forEach(entry => {
+                    addPhoneNumberRow(entry.name, entry.number);
+                });
+            } else {
+                // Add one empty row by default
+                addPhoneNumberRow();
+            }
+        });
+        
         function toggleCollapsible(sectionId) {
             const content = document.getElementById(sectionId + '-content');
             const toggle = document.getElementById(sectionId + '-toggle');
@@ -372,9 +477,15 @@
             const formData = new FormData(e.target);
             const data = {};
             
-            // Handle regular inputs
+            // Collect phone numbers and convert to JSON
+            const phoneNumbers = collectPhoneNumbers();
+            data['RECIPIENT_PHONES'] = JSON.stringify(phoneNumbers);
+            
+            // Handle regular inputs (skip phone_name and phone_number as we handled them above)
             for (let [key, value] of formData.entries()) {
-                data[key] = value;
+                if (key !== 'phone_name' && key !== 'phone_number' && key !== 'RECIPIENT_PHONES') {
+                    data[key] = value;
+                }
             }
             
             // Handle checkboxes (they need to be explicitly set to true/false)
