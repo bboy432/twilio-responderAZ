@@ -477,14 +477,18 @@ def restart_container(branch):
         if result.returncode == 0:
             return True, f"Container {container_name} restarted successfully"
         else:
+            # Log the actual error internally but don't expose to user
             error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
-            return False, f"Failed to restart container: {error_msg}"
+            print(f"Container restart failed for {container_name}: {error_msg}", flush=True)
+            return False, "Failed to restart container. Please contact administrator."
     except subprocess.TimeoutExpired:
         return False, "Restart operation timed out"
     except FileNotFoundError:
         return False, "Docker CLI not available in this environment"
     except Exception as e:
-        return False, f"Unexpected error during restart: {str(e)}"
+        # Log the actual error internally but don't expose details to user
+        print(f"Unexpected error during restart: {str(e)}", flush=True)
+        return False, "An unexpected error occurred. Please contact administrator."
 
 
 @app.route('/api/branch/<branch>/restart', methods=['POST'])
