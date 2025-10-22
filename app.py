@@ -47,6 +47,18 @@ def send_debug(event_type, data=None):
         "data": data or {}
     }
 
+    # Print to stdout for Docker/Portainer logs (makes debugging much easier)
+    # Only print error-related events to avoid log spam
+    error_events = ['emergency_call_validation_error', 'emergency_call_config_error', 
+                    'sms_send_error', 'call_initiation_error', 'webhook_call_failed',
+                    'webhook_validation_error', 'webhook_processing_error', 'emergency_call_error',
+                    'config_load_error', 'connect_config_error', 'connect_failure']
+    if event_type in error_events:
+        try:
+            print(f"[ERROR] {event_type}: {json.dumps(data, default=str)}", flush=True)
+        except Exception:
+            print(f"[ERROR] {event_type}", flush=True)
+
     # Post to configured debug webhook if available
     try:
         if DEBUG_WEBHOOK_URL:
@@ -905,6 +917,8 @@ if __name__ == '__main__':
     print(f"Public URL (Set in Twilio): {public_url}")
     print(f"Web Portal: {public_url}/status")
     print(f"Messaging module loaded: {MESSAGING_MODULE_LOADED}")
+    print(f"Detailed logs: {LOG_PATH}")
+    print("Note: Error details are printed to stdout and also logged to the file above")
     print("=====================================================")
     send_debug("app_start", {"public_url": public_url, "port": FLASK_PORT, "messaging_loaded": MESSAGING_MODULE_LOADED})
     try:
