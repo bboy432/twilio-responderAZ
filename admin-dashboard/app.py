@@ -43,6 +43,26 @@ TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 
 DATABASE_PATH = os.environ.get('DATABASE_PATH', '/app/data/admin.db')
 
+# Settings categories
+BASIC_SETTINGS = [
+    'RECIPIENT_PHONES',
+    'RECIPIENT_EMAILS',
+    'enable_auto_call',
+    'enable_transfer_call',
+    'enable_emails',
+    'enable_texts'
+]
+
+ADVANCED_SETTINGS = [
+    'TWILIO_ACCOUNT_SID',
+    'TWILIO_AUTH_TOKEN',
+    'TWILIO_PHONE_NUMBER',
+    'TWILIO_AUTOMATED_NUMBER',
+    'TWILIO_TRANSFER_NUMBER',
+    'TRANSFER_TARGET_PHONE_NUMBER',
+    'DEBUG_WEBHOOK_URL'
+]
+
 
 # Database functions
 def init_db():
@@ -67,9 +87,22 @@ def init_db():
         can_view INTEGER DEFAULT 1,
         can_trigger INTEGER DEFAULT 0,
         can_disable INTEGER DEFAULT 0,
+        can_edit_basic_settings INTEGER DEFAULT 0,
+        can_edit_advanced_settings INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id),
         UNIQUE(user_id, branch)
     )''')
+    
+    # Add new columns to existing table if they don't exist
+    try:
+        c.execute('ALTER TABLE user_permissions ADD COLUMN can_edit_basic_settings INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        c.execute('ALTER TABLE user_permissions ADD COLUMN can_edit_advanced_settings INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     # Branch status table
     c.execute('''CREATE TABLE IF NOT EXISTS branch_status (
@@ -129,18 +162,34 @@ def get_user_permissions(user_id):
     conn = sqlite3.connect(DATABASE_PATH)
     c = conn.cursor()
     
-    c.execute('''SELECT branch, can_view, can_trigger, can_disable 
+    c.execute('''SELECT branch, can_view, can_trigger, can_disable, 
+                 can_edit_basic_settings, can_edit_advanced_settings 
                  FROM user_permissions WHERE user_id = ?''', (user_id,))
     permissions = {}
     for row in c.fetchall():
         permissions[row[0]] = {
             'can_view': bool(row[1]),
             'can_trigger': bool(row[2]),
-            'can_disable': bool(row[3])
+            'can_disable': bool(row[3]),
+            'can_edit_basic_settings': bool(row[4]) if len(row) > 4 else False,
+            'can_edit_advanced_settings': bool(row[5]) if len(row) > 5 else False
         }
     
     conn.close()
     return permissions
+
+
+def can_edit_setting(setting_key, user_is_admin, user_permissions):
+    """Check if user can edit a specific setting"""
+    if user_is_admin:
+        return True
+    
+    if setting_key in BASIC_SETTINGS:
+        return user_permissions.get('can_edit_basic_settings', False)
+    elif setting_key in ADVANCED_SETTINGS:
+        return user_permissions.get('can_edit_advanced_settings', False)
+    
+    return False
 
 
 def is_branch_enabled(branch):
@@ -453,12 +502,16 @@ def create_user():
                 can_view = request.form.get(f'perm_{branch}_view') == 'on'
                 can_trigger = request.form.get(f'perm_{branch}_trigger') == 'on'
                 can_disable = request.form.get(f'perm_{branch}_disable') == 'on'
+                can_edit_basic = request.form.get(f'perm_{branch}_edit_basic') == 'on'
+                can_edit_advanced = request.form.get(f'perm_{branch}_edit_advanced') == 'on'
                 
                 c.execute('''INSERT INTO user_permissions 
-                             (user_id, branch, can_view, can_trigger, can_disable) 
-                             VALUES (?, ?, ?, ?, ?)''',
+                             (user_id, branch, can_view, can_trigger, can_disable, 
+                              can_edit_basic_settings, can_edit_advanced_settings) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?)''',
                          (user_id, branch, 1 if can_view else 0, 
-                          1 if can_trigger else 0, 1 if can_disable else 0))
+                          1 if can_trigger else 0, 1 if can_disable else 0,
+                          1 if can_edit_basic else 0, 1 if can_edit_advanced else 0))
         
         conn.commit()
         flash(f'User {username} created successfully', 'success')
@@ -525,20 +578,28 @@ def branch_settings(branch):
         return redirect(url_for('dashboard'))
     
     # Check permissions
+    user_perms = {}
     if not session.get('is_admin'):
-        perms = get_user_permissions(session['user_id'])
-        if branch not in perms or not perms[branch]['can_view']:
+        user_perms = get_user_permissions(session['user_id'])
+        if branch not in user_perms or not user_perms[branch]['can_view']:
             flash('Permission denied', 'error')
             return redirect(url_for('dashboard'))
     
     branch_info = BRANCHES[branch]
     settings = get_branch_settings_with_defaults(branch)
     
+    # Get user's permissions for this branch
+    branch_perms = user_perms.get(branch, {}) if user_perms else {}
+    
     return render_template('branch_settings.html',
                          branch_key=branch,
                          branch=branch_info,
                          settings=settings,
-                         is_admin=session.get('is_admin', False))
+                         is_admin=session.get('is_admin', False),
+                         can_edit_basic=session.get('is_admin') or branch_perms.get('can_edit_basic_settings', False),
+                         can_edit_advanced=session.get('is_admin') or branch_perms.get('can_edit_advanced_settings', False),
+                         basic_settings=BASIC_SETTINGS,
+                         advanced_settings=ADVANCED_SETTINGS)
 
 
 @app.route('/api/branch/<branch>/settings', methods=['GET'])
@@ -574,23 +635,45 @@ def update_branch_settings_api(branch):
     if branch not in BRANCHES:
         return jsonify({'error': 'Invalid branch'}), 404
     
-    # Check permissions - require admin for settings changes
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Admin access required to change settings'}), 403
+    # Get user permissions
+    is_admin = session.get('is_admin', False)
+    user_perms = {}
+    if not is_admin:
+        user_perms = get_user_permissions(session['user_id'])
+        if branch not in user_perms or not user_perms[branch]['can_view']:
+            return jsonify({'error': 'Permission denied'}), 403
+        branch_perms = user_perms[branch]
+    else:
+        branch_perms = {
+            'can_edit_basic_settings': True,
+            'can_edit_advanced_settings': True
+        }
     
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     
-    # Update each setting
+    # Update each setting with permission checks
     updated_keys = []
+    denied_keys = []
     for key, value in data.items():
+        # Check if user has permission to edit this setting
+        if not can_edit_setting(key, is_admin, branch_perms):
+            denied_keys.append(key)
+            continue
+        
         # Skip empty values for sensitive fields
         if not value and (key.endswith('TOKEN') or key.endswith('SID')):
             continue
         
         update_branch_setting(branch, key, value, session['username'])
         updated_keys.append(key)
+    
+    if denied_keys:
+        return jsonify({
+            'error': f'Permission denied for settings: {", ".join(denied_keys)}',
+            'denied_keys': denied_keys
+        }), 403
     
     # Trigger settings reload on the branch
     try:

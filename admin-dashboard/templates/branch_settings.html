@@ -112,8 +112,83 @@
 
         <div class="settings-form">
             <form id="settingsForm">
+                {% if can_edit_basic %}
                 <div class="form-section">
-                    <h3>🔐 Twilio Credentials</h3>
+                    <h3>📨 Basic Settings - Notification Recipients</h3>
+                    <p class="subtitle" style="color: #666; font-size: 14px; margin-bottom: 15px;">Configure who receives notifications</p>
+                    
+                    <div class="form-group">
+                        <label for="RECIPIENT_PHONES">Recipient Phone Numbers</label>
+                        <input type="text" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" 
+                               value="{{ settings.get('RECIPIENT_PHONES', '') }}" 
+                               placeholder="5555555555,5555555556">
+                        <div class="help-text">Comma-separated list of SMS recipients</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="RECIPIENT_EMAILS">Recipient Emails</label>
+                        <input type="text" id="RECIPIENT_EMAILS" name="RECIPIENT_EMAILS" 
+                               value="{{ settings.get('RECIPIENT_EMAILS', '') }}" 
+                               placeholder="admin@example.com,tech@example.com">
+                        <div class="help-text">Comma-separated list of email recipients</div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>🎛️ Basic Settings - Feature Toggles</h3>
+                    <p class="subtitle" style="color: #666; font-size: 14px; margin-bottom: 15px;">Enable or disable specific features</p>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="enable_texts" name="enable_texts" 
+                                   {% if settings.get('enable_texts', 'true') == 'true' %}checked{% endif %}
+                                   style="width: auto; margin-right: 10px;">
+                            <span>Enable SMS Text Notifications</span>
+                        </label>
+                        <div class="help-text">Send SMS messages to recipient phones</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="enable_emails" name="enable_emails" 
+                                   {% if settings.get('enable_emails', 'true') == 'true' %}checked{% endif %}
+                                   style="width: auto; margin-right: 10px;">
+                            <span>Enable Email Notifications</span>
+                        </label>
+                        <div class="help-text">Send email notifications to recipient emails</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="enable_auto_call" name="enable_auto_call" 
+                                   {% if settings.get('enable_auto_call', 'true') == 'true' %}checked{% endif %}
+                                   style="width: auto; margin-right: 10px;">
+                            <span>Enable Automated Calls</span>
+                        </label>
+                        <div class="help-text">Automatically call technicians on emergency</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="enable_transfer_call" name="enable_transfer_call" 
+                                   {% if settings.get('enable_transfer_call', 'true') == 'true' %}checked{% endif %}
+                                   style="width: auto; margin-right: 10px;">
+                            <span>Enable Call Transfer</span>
+                        </label>
+                        <div class="help-text">Allow calls to be transferred to target number</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="form-section">
+                    <h3>📨 Basic Settings</h3>
+                    <p style="color: #666; font-style: italic;">You do not have permission to edit basic settings.</p>
+                </div>
+                {% endif %}
+
+                {% if can_edit_advanced %}
+                <div class="form-section">
+                    <h3>🔐 Advanced Settings - Twilio Credentials</h3>
+                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Changing these settings requires advanced permissions</p>
                     
                     <div class="form-group">
                         <label for="TWILIO_ACCOUNT_SID">Account SID</label>
@@ -136,7 +211,8 @@
                 </div>
 
                 <div class="form-section">
-                    <h3>📞 Phone Numbers</h3>
+                    <h3>📞 Advanced Settings - Phone Numbers</h3>
+                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Twilio phone number configuration</p>
                     
                     <div class="form-group">
                         <label for="TWILIO_PHONE_NUMBER">Twilio Phone Number</label>
@@ -172,27 +248,8 @@
                 </div>
 
                 <div class="form-section">
-                    <h3>📨 Notification Settings</h3>
-                    
-                    <div class="form-group">
-                        <label for="RECIPIENT_PHONES">Recipient Phone Numbers</label>
-                        <input type="text" id="RECIPIENT_PHONES" name="RECIPIENT_PHONES" 
-                               value="{{ settings.get('RECIPIENT_PHONES', '') }}" 
-                               placeholder="5555555555,5555555556">
-                        <div class="help-text">Comma-separated list of SMS recipients</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="RECIPIENT_EMAILS">Recipient Emails</label>
-                        <input type="text" id="RECIPIENT_EMAILS" name="RECIPIENT_EMAILS" 
-                               value="{{ settings.get('RECIPIENT_EMAILS', '') }}" 
-                               placeholder="admin@example.com,tech@example.com">
-                        <div class="help-text">Comma-separated list of email recipients</div>
-                    </div>
-                </div>
-
-                <div class="form-section">
-                    <h3>🐛 Debug Settings</h3>
+                    <h3>🐛 Advanced Settings - Debug</h3>
+                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Debug and development settings</p>
                     
                     <div class="form-group">
                         <label for="DEBUG_WEBHOOK_URL">Debug Webhook URL</label>
@@ -202,11 +259,23 @@
                         <div class="help-text">Optional webhook URL for debugging events</div>
                     </div>
                 </div>
+                {% else %}
+                <div class="form-section">
+                    <h3>🔐 Advanced Settings</h3>
+                    <p style="color: #666; font-style: italic;">You do not have permission to edit advanced settings (Twilio credentials, phone numbers, debug settings).</p>
+                </div>
+                {% endif %}
 
+                {% if can_edit_basic or can_edit_advanced %}
                 <div class="btn-group">
                     <button type="submit" class="btn btn-primary">💾 Save Settings</button>
                     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
                 </div>
+                {% else %}
+                <div class="btn-group">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -218,9 +287,19 @@
             const formData = new FormData(e.target);
             const data = {};
             
+            // Handle regular inputs
             for (let [key, value] of formData.entries()) {
                 data[key] = value;
             }
+            
+            // Handle checkboxes (they need to be explicitly set to true/false)
+            const checkboxes = ['enable_texts', 'enable_emails', 'enable_auto_call', 'enable_transfer_call'];
+            checkboxes.forEach(name => {
+                const checkbox = document.getElementById(name);
+                if (checkbox) {
+                    data[name] = checkbox.checked ? 'true' : 'false';
+                }
+            });
             
             try {
                 const response = await fetch('/api/branch/{{ branch_key }}/settings', {
@@ -245,7 +324,10 @@
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     
                     // Clear password field after successful save
-                    document.getElementById('TWILIO_AUTH_TOKEN').value = '';
+                    const authTokenField = document.getElementById('TWILIO_AUTH_TOKEN');
+                    if (authTokenField) {
+                        authTokenField.value = '';
+                    }
                     
                     // Redirect to dashboard after 1 second
                     setTimeout(() => {
@@ -257,6 +339,8 @@
                             ❌ Error: ${result.error || 'Failed to save settings'}
                         </div>
                     `;
+                    // Scroll to top to show error
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
             } catch (error) {
                 const alertContainer = document.getElementById('alert-container');
@@ -265,6 +349,8 @@
                         ❌ Error: ${error.message}
                     </div>
                 `;
+                // Scroll to top to show error
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         });
     </script>

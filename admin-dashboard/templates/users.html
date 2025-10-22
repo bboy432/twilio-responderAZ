@@ -72,6 +72,14 @@
                             <input type="checkbox" name="perm_{{ branch_key }}_disable">
                             Enable/Disable Branch
                         </label>
+                        <label>
+                            <input type="checkbox" name="perm_{{ branch_key }}_edit_basic">
+                            Edit Basic Settings (emails, phones, toggles)
+                        </label>
+                        <label>
+                            <input type="checkbox" name="perm_{{ branch_key }}_edit_advanced">
+                            Edit Advanced Settings (Twilio credentials, numbers)
+                        </label>
                     </div>
                     {% endfor %}
                 </div>
@@ -84,6 +92,14 @@
         </div>
 
         <div class="users-table">
+            <div style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                <strong>Permission Legend:</strong> 
+                V = View Dashboard | 
+                T = Trigger Emergencies | 
+                D = Disable/Enable Branch | 
+                B = Edit Basic Settings | 
+                A = Edit Advanced Settings
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -116,6 +132,8 @@
                                         {% if perms.can_view %}V{% endif %}
                                         {% if perms.can_trigger %}T{% endif %}
                                         {% if perms.can_disable %}D{% endif %}
+                                        {% if perms.can_edit_basic_settings %}B{% endif %}
+                                        {% if perms.can_edit_advanced_settings %}A{% endif %}
                                     </div>
                                 {% endfor %}
                             {% endif %}
