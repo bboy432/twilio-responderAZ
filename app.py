@@ -431,33 +431,76 @@ def make_emergency_call(emergency_id, emergency_data):
         "emergency_data": emergency_data
     })
     try:
-        client = get_twilio_client()
+        # Validate required configuration
         technician_number = emergency_data.get('technician_number')
+        if not technician_number:
+            error_msg = "Technician number is missing from emergency data"
+            send_debug("emergency_call_validation_error", {"error": error_msg})
+            return False, error_msg
+        
+        if not technician_number.startswith('+'):
+            error_msg = f"Invalid technician number format (missing country code): {technician_number}"
+            send_debug("emergency_call_validation_error", {"error": error_msg})
+            return False, error_msg
+        
+        # Get Twilio configuration
+        account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
+        auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
         automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
         
+        # Validate Twilio configuration
+        if not account_sid or not auth_token:
+            error_msg = "Twilio credentials (ACCOUNT_SID or AUTH_TOKEN) are not configured"
+            send_debug("emergency_call_config_error", {"error": error_msg})
+            return False, error_msg
+        
+        if not automated_number:
+            error_msg = "TWILIO_AUTOMATED_NUMBER is not configured"
+            send_debug("emergency_call_config_error", {"error": error_msg})
+            return False, error_msg
+        
+        if not automated_number.startswith('+'):
+            error_msg = f"Invalid automated number format (missing country code): {automated_number}"
+            send_debug("emergency_call_config_error", {"error": error_msg})
+            return False, error_msg
+        
+        client = get_twilio_client()
         send_debug("twilio_client_created", {"technician_number": technician_number})
         
         # Send SMS
         sms_text = format_emergency_sms(emergency_data)
-        client.messages.create(body=sms_text, from_=automated_number, to=technician_number)
-        send_debug("primary_sms_sent", {"to": technician_number})
+        try:
+            sms_message = client.messages.create(body=sms_text, from_=automated_number, to=technician_number)
+            send_debug("primary_sms_sent", {"to": technician_number, "sid": sms_message.sid})
+        except Exception as sms_error:
+            error_msg = f"Failed to send SMS: {str(sms_error)}"
+            send_debug("sms_send_error", {"error": error_msg, "to": technician_number})
+            # Continue with call even if SMS fails
+        
         send_sms_to_all_recipients(client, sms_text)
 
         # Make call
         message = format_emergency_message(emergency_data)
-        call = client.calls.create(
-            twiml=f'<Response><Pause length="2"/><Say>{message}</Say><Hangup /></Response>',
-            to=technician_number, from_=automated_number,
-            status_callback=f"{public_url}/technician_call_ended?emergency_id={emergency_id}",
-            status_callback_event=['completed']
-        )
-        
-        send_debug("emergency_call_initiated", {"to": technician_number, "call_sid": call.sid})
-        update_active_emergency('technician_call_sid', call.sid)
-        return True
+        try:
+            call = client.calls.create(
+                twiml=f'<Response><Pause length="2"/><Say>{message}</Say><Hangup /></Response>',
+                to=technician_number, from_=automated_number,
+                status_callback=f"{public_url}/technician_call_ended?emergency_id={emergency_id}",
+                status_callback_event=['completed']
+            )
+            
+            send_debug("emergency_call_initiated", {"to": technician_number, "call_sid": call.sid})
+            update_active_emergency('technician_call_sid', call.sid)
+            return True, "Call initiated successfully"
+        except Exception as call_error:
+            error_msg = f"Failed to initiate call: {str(call_error)}"
+            send_debug("call_initiation_error", {"error": error_msg, "to": technician_number})
+            return False, error_msg
+            
     except Exception as e:
-        send_debug("emergency_call_error", {"error": str(e)})
-        return False
+        error_msg = f"Unexpected error in make_emergency_call: {str(e)}"
+        send_debug("emergency_call_error", {"error": error_msg, "type": str(type(e))})
+        return False, error_msg
 
 
 
@@ -621,6 +664,16 @@ def webhook_listener():
 
     try:
         data = request.get_json()
+        
+        # Validate request data
+        if not data:
+            send_debug("webhook_validation_error", {"error": "No JSON data received"})
+            return jsonify({"status": "error", "message": "No data provided"}), 400
+        
+        if not data.get('chosen_phone'):
+            send_debug("webhook_validation_error", {"error": "Missing chosen_phone"})
+            return jsonify({"status": "error", "message": "Missing required field: chosen_phone"}), 400
+        
         emergency_id = str(uuid.uuid4())
         
         emergency_data = {
@@ -639,13 +692,24 @@ def webhook_listener():
         }
         set_active_emergency(emergency_data)
 
-        make_emergency_call(emergency_id, emergency_data)
+        # Attempt to make the emergency call
+        success, message = make_emergency_call(emergency_id, emergency_data)
         
-        return jsonify({"status": "success"}), 200
+        if not success:
+            # Call failed, clear the emergency state and return error
+            clear_active_emergency()
+            send_debug("webhook_call_failed", {"emergency_id": emergency_id, "error": message})
+            # Don't expose detailed error messages to external users for security
+            return jsonify({"status": "error", "message": "Failed to initiate emergency call. Please check configuration and try again."}), 500
+        
+        return jsonify({"status": "success", "message": "Emergency call initiated successfully"}), 200
 
     except Exception as e:
+        # Make sure to clear emergency state on any error
+        clear_active_emergency()
         send_debug("webhook_processing_error", {"error": str(e)})
-        return jsonify({"status": "error"}), 500
+        # Don't expose detailed error messages to external users for security
+        return jsonify({"status": "error", "message": "An error occurred processing the emergency request."}), 500
 
 
 @app.route('/sms_reply', methods=['POST'])
