@@ -361,12 +361,12 @@
                 {% endif %}
 
                 {% if can_edit_basic or can_edit_advanced or is_admin %}
-                <div class="btn-group">
+                <div class="btn-group sticky-actions">
                     <button type="submit" class="btn btn-primary">💾 Save Settings</button>
                     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
                 </div>
                 {% else %}
-                <div class="btn-group">
+                <div class="btn-group sticky-actions">
                     <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
                 </div>
                 {% endif %}
