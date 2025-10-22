@@ -81,6 +81,43 @@
         .sensitive-field {
             background-color: #fff9e6;
         }
+        .collapsible-section {
+            margin-bottom: 20px;
+        }
+        .collapsible-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+        .collapsible-header:hover {
+            background: #e9ecef;
+        }
+        .collapsible-header h3 {
+            margin: 0;
+            font-size: 1.1em;
+        }
+        .collapsible-toggle {
+            font-size: 1.5em;
+            transition: transform 0.3s ease;
+        }
+        .collapsible-toggle.open {
+            transform: rotate(180deg);
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .collapsible-content.open {
+            max-height: 2000px;
+            transition: max-height 0.5s ease;
+        }
     </style>
 </head>
 <body>
@@ -190,77 +227,85 @@
                 {% endif %}
 
                 {% if can_edit_advanced %}
-                <div class="form-section">
-                    <h3>🔐 Advanced Settings - Twilio Credentials</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Changing these settings requires advanced permissions</p>
-                    
-                    <div class="form-group">
-                        <label for="TWILIO_ACCOUNT_SID">Account SID</label>
-                        <input type="text" id="TWILIO_ACCOUNT_SID" name="TWILIO_ACCOUNT_SID" 
-                               value="{{ settings.get('TWILIO_ACCOUNT_SID', '') }}" 
-                               class="sensitive-field"
-                               autocomplete="off"
-                               placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-                        <div class="help-text">Your Twilio Account SID from the console</div>
+                <div class="collapsible-section">
+                    <div class="collapsible-header" onclick="toggleCollapsible('advanced-section')">
+                        <h3>🔐 Advanced Settings</h3>
+                        <span class="collapsible-toggle" id="advanced-section-toggle">▼</span>
                     </div>
+                    <div class="collapsible-content" id="advanced-section-content">
+                        <div class="form-section">
+                            <h3>🔐 Twilio Credentials</h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Changing these settings requires advanced permissions</p>
+                            
+                            <div class="form-group">
+                                <label for="TWILIO_ACCOUNT_SID">Account SID</label>
+                                <input type="text" id="TWILIO_ACCOUNT_SID" name="TWILIO_ACCOUNT_SID" 
+                                       value="{{ settings.get('TWILIO_ACCOUNT_SID', '') }}" 
+                                       class="sensitive-field"
+                                       autocomplete="off"
+                                       placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                                <div class="help-text">Your Twilio Account SID from the console</div>
+                            </div>
 
-                    <div class="form-group">
-                        <label for="TWILIO_AUTH_TOKEN">Auth Token</label>
-                        <input type="password" id="TWILIO_AUTH_TOKEN" name="TWILIO_AUTH_TOKEN" 
-                               value="{{ settings.get('TWILIO_AUTH_TOKEN', '') }}" 
-                               class="sensitive-field"
-                               placeholder="Leave blank to keep existing value">
-                        <div class="help-text">Your Twilio Auth Token (leave blank to keep current)</div>
-                    </div>
-                </div>
+                            <div class="form-group">
+                                <label for="TWILIO_AUTH_TOKEN">Auth Token</label>
+                                <input type="password" id="TWILIO_AUTH_TOKEN" name="TWILIO_AUTH_TOKEN" 
+                                       value="{{ settings.get('TWILIO_AUTH_TOKEN', '') }}" 
+                                       class="sensitive-field"
+                                       placeholder="Leave blank to keep existing value">
+                                <div class="help-text">Your Twilio Auth Token (leave blank to keep current)</div>
+                            </div>
+                        </div>
 
-                <div class="form-section">
-                    <h3>📞 Advanced Settings - Phone Numbers</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Twilio phone number configuration</p>
-                    
-                    <div class="form-group">
-                        <label for="TWILIO_PHONE_NUMBER">Twilio Phone Number</label>
-                        <input type="tel" id="TWILIO_PHONE_NUMBER" name="TWILIO_PHONE_NUMBER" 
-                               value="{{ settings.get('TWILIO_PHONE_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Primary Twilio number for incoming calls</div>
-                    </div>
+                        <div class="form-section">
+                            <h3>📞 Phone Numbers</h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Twilio phone number configuration</p>
+                            
+                            <div class="form-group">
+                                <label for="TWILIO_PHONE_NUMBER">Twilio Phone Number</label>
+                                <input type="tel" id="TWILIO_PHONE_NUMBER" name="TWILIO_PHONE_NUMBER" 
+                                       value="{{ settings.get('TWILIO_PHONE_NUMBER', '') }}" 
+                                       placeholder="5555555555">
+                                <div class="help-text">Primary Twilio number for incoming calls</div>
+                            </div>
 
-                    <div class="form-group">
-                        <label for="TWILIO_AUTOMATED_NUMBER">Automated Number</label>
-                        <input type="tel" id="TWILIO_AUTOMATED_NUMBER" name="TWILIO_AUTOMATED_NUMBER" 
-                               value="{{ settings.get('TWILIO_AUTOMATED_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Number used for automated calls to technicians</div>
-                    </div>
+                            <div class="form-group">
+                                <label for="TWILIO_AUTOMATED_NUMBER">Automated Number</label>
+                                <input type="tel" id="TWILIO_AUTOMATED_NUMBER" name="TWILIO_AUTOMATED_NUMBER" 
+                                       value="{{ settings.get('TWILIO_AUTOMATED_NUMBER', '') }}" 
+                                       placeholder="5555555555">
+                                <div class="help-text">Number used for automated calls to technicians</div>
+                            </div>
 
-                    <div class="form-group">
-                        <label for="TWILIO_TRANSFER_NUMBER">Transfer Number</label>
-                        <input type="tel" id="TWILIO_TRANSFER_NUMBER" name="TWILIO_TRANSFER_NUMBER" 
-                               value="{{ settings.get('TWILIO_TRANSFER_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Number used for call transfers</div>
-                    </div>
+                            <div class="form-group">
+                                <label for="TWILIO_TRANSFER_NUMBER">Transfer Number</label>
+                                <input type="tel" id="TWILIO_TRANSFER_NUMBER" name="TWILIO_TRANSFER_NUMBER" 
+                                       value="{{ settings.get('TWILIO_TRANSFER_NUMBER', '') }}" 
+                                       placeholder="5555555555">
+                                <div class="help-text">Number used for call transfers</div>
+                            </div>
 
-                    <div class="form-group">
-                        <label for="TRANSFER_TARGET_PHONE_NUMBER">Transfer Target Number</label>
-                        <input type="tel" id="TRANSFER_TARGET_PHONE_NUMBER" name="TRANSFER_TARGET_PHONE_NUMBER" 
-                               value="{{ settings.get('TRANSFER_TARGET_PHONE_NUMBER', '') }}" 
-                               placeholder="5555555555">
-                        <div class="help-text">Default number to transfer calls to</div>
-                    </div>
-                </div>
+                            <div class="form-group">
+                                <label for="TRANSFER_TARGET_PHONE_NUMBER">Transfer Target Number</label>
+                                <input type="tel" id="TRANSFER_TARGET_PHONE_NUMBER" name="TRANSFER_TARGET_PHONE_NUMBER" 
+                                       value="{{ settings.get('TRANSFER_TARGET_PHONE_NUMBER', '') }}" 
+                                       placeholder="5555555555">
+                                <div class="help-text">Default number to transfer calls to</div>
+                            </div>
+                        </div>
 
-                <div class="form-section">
-                    <h3>🐛 Advanced Settings - Debug</h3>
-                    <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Debug and development settings</p>
-                    
-                    <div class="form-group">
-                        <label for="DEBUG_WEBHOOK_URL">Debug Webhook URL</label>
-                        <input type="url" id="DEBUG_WEBHOOK_URL" name="DEBUG_WEBHOOK_URL" 
-                               value="{{ settings.get('DEBUG_WEBHOOK_URL', '') }}" 
-                               placeholder="https://webhook.site/your-unique-id">
-                        <div class="help-text">Optional webhook URL for debugging events</div>
+                        <div class="form-section">
+                            <h3>🐛 Debug Settings</h3>
+                            <p class="subtitle" style="color: #d9534f; font-size: 14px; margin-bottom: 15px;">⚠️ Debug and development settings</p>
+                            
+                            <div class="form-group">
+                                <label for="DEBUG_WEBHOOK_URL">Debug Webhook URL</label>
+                                <input type="url" id="DEBUG_WEBHOOK_URL" name="DEBUG_WEBHOOK_URL" 
+                                       value="{{ settings.get('DEBUG_WEBHOOK_URL', '') }}" 
+                                       placeholder="https://webhook.site/your-unique-id">
+                                <div class="help-text">Optional webhook URL for debugging events</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 {% else %}
@@ -302,6 +347,19 @@
     </div>
 
     <script>
+        function toggleCollapsible(sectionId) {
+            const content = document.getElementById(sectionId + '-content');
+            const toggle = document.getElementById(sectionId + '-toggle');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                toggle.classList.remove('open');
+            } else {
+                content.classList.add('open');
+                toggle.classList.add('open');
+            }
+        }
+        
         document.getElementById('settingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -320,7 +378,7 @@
             }
             
             // Handle checkboxes (they need to be explicitly set to true/false)
-            const checkboxes = ['enable_texts', 'enable_emails', 'enable_auto_call', 'enable_transfer_call'];
+            const checkboxes = ['enable_texts', 'enable_emails', 'enable_auto_call', 'enable_transfer_call', 'enable_google_maps_link'];
             checkboxes.forEach(name => {
                 const checkbox = document.getElementById(name);
                 if (checkbox) {

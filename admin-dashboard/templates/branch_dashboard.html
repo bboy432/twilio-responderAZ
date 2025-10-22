@@ -9,6 +9,45 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .collapsible-section {
+            margin-bottom: 20px;
+        }
+        .collapsible-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+        .collapsible-header:hover {
+            background: #e9ecef;
+        }
+        .collapsible-header h3 {
+            margin: 0;
+            font-size: 1.1em;
+        }
+        .collapsible-toggle {
+            font-size: 1.5em;
+            transition: transform 0.3s ease;
+        }
+        .collapsible-toggle.open {
+            transform: rotate(180deg);
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .collapsible-content.open {
+            max-height: 2000px;
+            transition: max-height 0.5s ease;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar">
@@ -52,10 +91,6 @@
                     <span>{{ branch.name }}</span>
                 </div>
                 <div class="info-item">
-                    <label>Public URL:</label>
-                    <span><a href="{{ branch.public_url }}/status" target="_blank">{{ branch.public_url }}/status</a></span>
-                </div>
-                <div class="info-item">
                     <label>Status:</label>
                     <span class="status-text-{{ 'online' if status.online else 'offline' }}">
                         {{ status.status }}
@@ -65,12 +100,35 @@
                     <label>Message:</label>
                     <span>{{ status.message }}</span>
                 </div>
-                <div class="info-item">
-                    <label>Enabled:</label>
-                    <span>{{ 'Yes' if status.enabled else 'No' }}</span>
+            </div>
+        </div>
+
+        {% if is_admin or (branch_key in user_permissions and (user_permissions[branch_key].can_edit_basic_settings or user_permissions[branch_key].can_edit_advanced_settings or user_permissions[branch_key].can_restart)) %}
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible('advanced-info')">
+                <h3>🔧 Advanced Information</h3>
+                <span class="collapsible-toggle" id="advanced-info-toggle">▼</span>
+            </div>
+            <div class="collapsible-content" id="advanced-info-content">
+                <div class="branch-detail-card" style="margin-top: 0;">
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Public URL:</label>
+                            <span><a href="{{ branch.public_url }}/status" target="_blank">{{ branch.public_url }}/status</a></span>
+                        </div>
+                        <div class="info-item">
+                            <label>Internal URL:</label>
+                            <span>{{ branch.url }}</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Enabled:</label>
+                            <span>{{ 'Yes' if status.enabled else 'No' }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+        {% endif %}
 
         <div class="iframe-container">
             <h3>Branch Dashboard</h3>
@@ -106,6 +164,20 @@
         </div>
     </div>
 
+    <script>
+        function toggleCollapsible(sectionId) {
+            const content = document.getElementById(sectionId + '-content');
+            const toggle = document.getElementById(sectionId + '-toggle');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                toggle.classList.remove('open');
+            } else {
+                content.classList.add('open');
+                toggle.classList.add('open');
+            }
+        }
+    </script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

@@ -561,6 +561,9 @@ def favicon_16():
 def status_page():
     status, status_message = get_simple_status()
     last_3_calls = get_last_n_calls(3)
+    # Get all calls for advanced section
+    full_calls = parse_log_for_timeline()
+    full_calls_count = len(full_calls)
     # Replace spaces with hyphens in status for CSS class name
     status_class = status.replace(' ', '-')
 
@@ -579,12 +582,21 @@ def status_page():
         .status-Ready { background-color: #28a745; }
         .status-In-Use { background-color: #ffc107; color: #333;}
         .status-Error { background-color: #dc3545; }
-        .call-history { background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .call-history { background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .call-history h2 { margin-top: 0; }
         .call { border-bottom: 1px solid #eee; padding: 15px 0; }
         .call:last-child { border-bottom: none; }
         .call-time { font-weight: bold; margin-bottom: 8px; }
         .call-details { white-space: pre-wrap; font-family: monospace; background-color: #f8f9fa; padding: 10px; border-radius: 6px; }
+        .collapsible-section { background-color: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; overflow: hidden; }
+        .collapsible-header { background: #f8f9fa; padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dee2e6; transition: all 0.3s ease; }
+        .collapsible-header:hover { background: #e9ecef; }
+        .collapsible-header h2 { margin: 0; font-size: 1.3em; }
+        .collapsible-toggle { font-size: 1.5em; transition: transform 0.3s ease; }
+        .collapsible-toggle.open { transform: rotate(180deg); }
+        .collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .collapsible-content.open { max-height: 2000px; transition: max-height 0.5s ease; }
+        .collapsible-body { padding: 20px; }
     </style>
 </head>
 <body>
@@ -604,10 +616,59 @@ def status_page():
             <p>No activity yet.</p>
         {% endfor %}
     </div>
+
+    <div class="collapsible-section">
+        <div class="collapsible-header" onclick="toggleCollapsible('advanced-details')">
+            <h2>🔧 Advanced Details</h2>
+            <span class="collapsible-toggle" id="advanced-details-toggle">▼</span>
+        </div>
+        <div class="collapsible-content" id="advanced-details-content">
+            <div class="collapsible-body">
+                <h3>System Information</h3>
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                    <p style="margin: 5px 0;"><strong>Branch:</strong> {{ branch_name }}</p>
+                    <p style="margin: 5px 0;"><strong>Auto-refresh:</strong> Every 30 seconds</p>
+                    <p style="margin: 5px 0;"><strong>Last refresh:</strong> <span id="currentTime"></span></p>
+                </div>
+                
+                <h3>Full Activity Log</h3>
+                <p style="color: #666; font-size: 14px;">Complete timeline showing all {{ full_calls_count }} events</p>
+                {% for call in full_calls %}
+                    <div class="call">
+                        <div class="call-time">{{ call.icon }} {{ call.timestamp }} - {{ call.title }}</div>
+                        <div class="call-details">{{ call.details }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleCollapsible(sectionId) {
+            const content = document.getElementById(sectionId + '-content');
+            const toggle = document.getElementById(sectionId + '-toggle');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                toggle.classList.remove('open');
+            } else {
+                content.classList.add('open');
+                toggle.classList.add('open');
+            }
+        }
+        
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString();
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+    </script>
 </body>
 </html>
     """
-    return render_template_string(template, status=status, status_class=status_class, status_message=status_message, last_3_calls=last_3_calls)
+    return render_template_string(template, status=status, status_class=status_class, status_message=status_message, last_3_calls=last_3_calls, full_calls=full_calls, full_calls_count=full_calls_count, branch_name=BRANCH_NAME)
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
