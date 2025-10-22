@@ -404,18 +404,14 @@ def format_final_email(emergency_data):
 def send_sms_to_all_recipients(client, sms_message):
     recipients_str = get_setting('RECIPIENT_PHONES', os.environ.get('RECIPIENT_PHONES', ''))
     
-    if DEBUG_WEBHOOK_URL:
-        debug_data = {
-            "event": "sms_attempt",
-            "recipients_from_env": recipients_str,
-            "twilio_number": get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER),
-            "message": sms_message
-        }
-        requests.post(DEBUG_WEBHOOK_URL, json=debug_data)
+    send_debug("sms_attempt", {
+        "recipients_from_env": recipients_str,
+        "twilio_number": get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER),
+        "message": sms_message
+    })
     
     if not recipients_str:
-        if DEBUG_WEBHOOK_URL:
-            requests.post(DEBUG_WEBHOOK_URL, json={"event": "error", "message": "RECIPIENT_PHONES not set"})
+        send_debug("sms_recipients_not_set", {"message": "RECIPIENT_PHONES not set"})
         return
 
     phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
@@ -426,15 +422,12 @@ def send_sms_to_all_recipients(client, sms_message):
         try:
             if not phone_number.startswith('+'):
                 phone_number = '+' + phone_number
-                if DEBUG_WEBHOOK_URL:
-                    requests.post(DEBUG_WEBHOOK_URL, json={"event": "number_formatted", "number": phone_number})
+                send_debug("number_formatted", {"number": phone_number})
             
             message = client.messages.create(body=sms_message, from_=automated_number, to=phone_number)
-            if DEBUG_WEBHOOK_URL:
-                requests.post(DEBUG_WEBHOOK_URL, json={"event": "sms_sent", "to": phone_number, "sid": message.sid})
+            send_debug("sms_sent", {"to": phone_number, "sid": message.sid})
         except Exception as e:
-            if DEBUG_WEBHOOK_URL:
-                requests.post(DEBUG_WEBHOOK_URL, json={"event": "sms_error", "to": phone_number, "error": str(e)})
+            send_debug("sms_error", {"to": phone_number, "error": str(e)})
 
 def make_emergency_call(emergency_id, emergency_data):
     """Initiates the detailed call to the technician."""
@@ -588,6 +581,70 @@ def reload_settings():
         # Log the full error internally but don't expose to external users
         send_debug("settings_reload_error", {"error": str(e)})
         return jsonify({"status": "error", "message": "Failed to reload settings"}), 500
+
+@app.route('/api/logs', methods=['GET'])
+def api_logs():
+    """Returns logs from the application.
+    
+    Query parameters:
+    - all: Returns all logs (no parameter value needed, just ?all)
+    - recent: Returns recent N entries (e.g., ?recent=10)
+    
+    Returns JSON with timeline events or raw log content.
+    """
+    try:
+        # Parse query parameters
+        if 'all' in request.args:
+            # Return all parsed timeline events
+            timeline = parse_log_for_timeline()
+            return jsonify({
+                "status": "success",
+                "count": len(timeline),
+                "logs": timeline
+            }), 200
+        
+        elif 'recent' in request.args:
+            # Return recent N entries
+            try:
+                count = int(request.args.get('recent', 10))
+                if count <= 0:
+                    return jsonify({"status": "error", "message": "recent parameter must be a positive integer"}), 400
+            except ValueError:
+                return jsonify({"status": "error", "message": "recent parameter must be a valid integer"}), 400
+            
+            timeline = parse_log_for_timeline()
+            recent_logs = timeline[:count]  # Already sorted by most recent first
+            
+            return jsonify({
+                "status": "success",
+                "count": len(recent_logs),
+                "requested": count,
+                "logs": recent_logs
+            }), 200
+        
+        else:
+            # No parameters provided - return usage info
+            return jsonify({
+                "status": "error",
+                "message": "Missing query parameter. Use ?all or ?recent=N",
+                "examples": [
+                    "/api/logs?all - Returns all log entries",
+                    "/api/logs?recent=10 - Returns 10 most recent log entries"
+                ]
+            }), 400
+            
+    except FileNotFoundError:
+        return jsonify({
+            "status": "error",
+            "message": "Log file not found. Logs will be created when events occur."
+        }), 404
+    except Exception as e:
+        send_debug("api_logs_error", {"error": str(e)})
+        return jsonify({
+            "status": "error",
+            "message": "An error occurred while retrieving logs"
+        }), 500
+
 
 @app.route('/resolve_errors', methods=['POST'])
 def resolve_errors():

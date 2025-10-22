@@ -112,7 +112,7 @@ See [dashboard/README.md](dashboard/README.md) for full documentation.
 - `FLASK_PORT` — Port the Flask app listens on (default `5000`)
 - `RECIPIENT_PHONES` — Comma-separated list of additional SMS recipients
 - `RECIPIENT_EMAILS` — Comma-separated list of emails used for simulated email notifications
-- `DEBUG_WEBHOOK_URL` — If set, the app will POST structured debugging events to this URL
+- `DEBUG_WEBHOOK_URL` — (Optional) If set, the app will POST structured debugging events to this URL. The application works fully without this variable - all events are logged locally regardless.
 
 ## Endpoints (for dashboard integration)
 All endpoints are mounted at the app root (e.g., `https://yourdomain.com/`). Replace `{{BASE_URL}}` with your configured `PUBLIC_URL`.
@@ -179,7 +179,36 @@ Dashboard usage:
 Dashboard usage:
 - Poll `/api/status` to show live health (e.g., green/yellow/red). Fetch `/status` or parse `parse_log_for_timeline()` output via `/debug_firehose` for recent events.
 
-### 7) GET|POST /debug_firehose
+### 7) GET /api/logs
+Retrieves application logs in JSON format for monitoring and debugging.
+- Method: GET
+- Query parameters:
+  - `?all` — Returns all parsed log entries
+  - `?recent=N` — Returns the N most recent log entries (e.g., `?recent=10`)
+- Response format:
+  ```json
+  {
+    "status": "success",
+    "count": 10,
+    "logs": [
+      {
+        "title": "Webhook: Emergency Triggered",
+        "timestamp": "Jan 15, 03:45:12 PM",
+        "icon": "🔗",
+        "details": "...",
+        "status": "success"
+      }
+    ]
+  }
+  ```
+- Error responses: 400 (invalid parameters), 404 (no log file), 500 (server error)
+
+Dashboard usage:
+- Use `GET /api/logs?recent=20` to display recent activity in a timeline view.
+- Use `GET /api/logs?all` to retrieve complete log history for analysis.
+- The endpoint works without `DEBUG_WEBHOOK_URL` configured, making it suitable for production use.
+
+### 8) GET|POST /debug_firehose
 Sends the app logs and parsed timeline to a webhook URL. This is useful for on-demand debugging or for pulling recent events into a dashboard.
 - Method: GET or POST
 - Query parameter: `webhook_url` (preferred) — the full POST target (e.g., https://webhook.site/your-uuid)
