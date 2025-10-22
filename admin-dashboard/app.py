@@ -628,6 +628,63 @@ def create_user():
     return redirect(url_for('users'))
 
 
+@app.route('/users/<int:user_id>/edit', methods=['POST'])
+@admin_required
+def edit_user(user_id):
+    """Update user permissions"""
+    if user_id == session['user_id']:
+        flash('Cannot edit your own account permissions', 'error')
+        return redirect(url_for('users'))
+    
+    conn = sqlite3.connect(DATABASE_PATH)
+    c = conn.cursor()
+    
+    # Check if user exists
+    c.execute('SELECT username, is_admin FROM users WHERE id = ?', (user_id,))
+    user = c.fetchone()
+    if not user:
+        flash('User not found', 'error')
+        conn.close()
+        return redirect(url_for('users'))
+    
+    username = user[0]
+    is_admin = user[1]
+    
+    # Update admin status if changed
+    new_is_admin = request.form.get('is_admin') == 'on'
+    if new_is_admin != bool(is_admin):
+        c.execute('UPDATE users SET is_admin = ? WHERE id = ?', (1 if new_is_admin else 0, user_id))
+    
+    # If not admin, update permissions for each branch
+    if not new_is_admin:
+        for branch in BRANCHES.keys():
+            can_view = request.form.get(f'perm_{branch}_view') == 'on'
+            can_trigger = request.form.get(f'perm_{branch}_trigger') == 'on'
+            can_disable = request.form.get(f'perm_{branch}_disable') == 'on'
+            can_edit_basic = request.form.get(f'perm_{branch}_edit_basic') == 'on'
+            can_edit_advanced = request.form.get(f'perm_{branch}_edit_advanced') == 'on'
+            can_restart = request.form.get(f'perm_{branch}_restart') == 'on'
+            
+            # Update or insert permissions
+            c.execute('''INSERT OR REPLACE INTO user_permissions 
+                         (user_id, branch, can_view, can_trigger, can_disable, 
+                          can_edit_basic_settings, can_edit_advanced_settings, can_restart) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                     (user_id, branch, 1 if can_view else 0, 
+                      1 if can_trigger else 0, 1 if can_disable else 0,
+                      1 if can_edit_basic else 0, 1 if can_edit_advanced else 0,
+                      1 if can_restart else 0))
+    else:
+        # If promoted to admin, remove all specific permissions
+        c.execute('DELETE FROM user_permissions WHERE user_id = ?', (user_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    flash(f'User {username} updated successfully', 'success')
+    return redirect(url_for('users'))
+
+
 @app.route('/users/<int:user_id>/delete', methods=['POST'])
 @admin_required
 def delete_user(user_id):
