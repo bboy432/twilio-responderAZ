@@ -963,8 +963,9 @@ def get_call_recordings(branch):
         # Initialize Twilio client
         client = Client(account_sid, auth_token)
         
-        # Get query parameters for pagination and filtering
+        # Get query parameters for filtering
         page_size = int(request.args.get('page_size', 20))
+        # Note: page parameter is kept for backward compatibility but not used in Twilio API
         page = int(request.args.get('page', 0))
         
         # Fetch recordings
