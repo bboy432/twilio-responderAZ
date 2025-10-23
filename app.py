@@ -980,8 +980,7 @@ def handle_incoming_twilio_call():
         response.say("Please hold while we connect you to the emergency technician.")
         
         # Put the customer in a queue with hold music
-        enqueueTwiml = response.enqueue(emergency_id)
-        enqueueTwiml.wait_url = "http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3"
+        response.enqueue(emergency_id, wait_url="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
 
         send_debug("customer_queued", {"emergency_id": emergency_id})
 
