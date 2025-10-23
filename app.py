@@ -115,7 +115,8 @@ try:
     # Debug line to check if RECIPIENT_PHONES is being loaded
     send_debug("env_debug", {"RECIPIENT_PHONES": os.environ.get('RECIPIENT_PHONES'), "BRANCH_NAME": BRANCH_NAME})
 
-    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
+    # Transfer numbers are optional - only required when enable_transfer_call is true
+    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, PUBLIC_URL, FLASK_PORT]):
         raise ValueError("One or more required environment variables are missing.")
 
 except Exception as e:
@@ -977,24 +978,99 @@ def handle_incoming_twilio_call():
     update_active_emergency('customer_call_sid', request.values.get('CallSid'))
 
     try:
-        response.say("Please hold while we connect you to the emergency technician.")
+        # Check if transfer call is enabled
+        enable_transfer = get_setting('enable_transfer_call', 'false')
         
-        # Put the customer in a queue with hold music
-        response.enqueue(emergency_id, wait_url="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
+        if enable_transfer == 'true':
+            # Transfer call mode: directly connect to transfer target number
+            transfer_target = get_setting('TRANSFER_TARGET_PHONE_NUMBER', TRANSFER_TARGET_PHONE_NUMBER)
+            transfer_from = get_setting('TWILIO_TRANSFER_NUMBER', TWILIO_TRANSFER_NUMBER)
+            
+            # Validate transfer configuration
+            if not transfer_target:
+                send_debug("transfer_config_error", {"error": "TRANSFER_TARGET_PHONE_NUMBER not configured"})
+                response.say("We apologize, but the transfer service is not properly configured. Please try again later.")
+                response.hangup()
+            elif not transfer_target.startswith('+'):
+                send_debug("transfer_config_error", {"error": f"Invalid transfer target format: {transfer_target}"})
+                response.say("We apologize, but the transfer service is not properly configured. Please try again later.")
+                response.hangup()
+            else:
+                response.say("Please hold while we transfer your call.")
+                
+                # Use Dial to transfer the call to the target number
+                dial = Dial(
+                    caller_id=transfer_from if transfer_from and transfer_from.startswith('+') else None,
+                    action=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
+                    timeout=30
+                )
+                dial.number(transfer_target)
+                response.append(dial)
+                
+                send_debug("call_transfer_initiated", {
+                    "emergency_id": emergency_id,
+                    "transfer_target": transfer_target,
+                    "transfer_from": transfer_from
+                })
+                update_active_emergency('status', 'transferred')
+        else:
+            # Queue mode: original behavior
+            response.say("Please hold while we connect you to the emergency technician.")
+            
+            # Put the customer in a queue with hold music
+            response.enqueue(emergency_id, wait_url="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
 
-        send_debug("customer_queued", {"emergency_id": emergency_id})
+            send_debug("customer_queued", {"emergency_id": emergency_id})
 
-        # If technician is ready, connect them right away
-        if emergency.get('status') == 'technician_informed':
-            connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
+            # If technician is ready, connect them right away
+            if emergency.get('status') == 'technician_informed':
+                connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
             
     except Exception as e:
-        send_debug("queue_setup_error", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
+        send_debug("call_handling_error", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
         response.say("We apologize, but there was an error connecting your call. Please try again.")
         response.hangup()
 
     send_debug("incoming_twiml", {"twiml": str(response)})
     return str(response), 200, {'Content-Type': 'application/xml'}
+
+
+@app.route("/transfer_complete", methods=['POST'])
+def transfer_complete():
+    """Callback for when a transfer call completes."""
+    emergency_id = request.args.get('emergency_id')
+    send_debug("transfer_complete", {
+        "emergency_id": emergency_id,
+        "dial_call_status": request.values.get('DialCallStatus'),
+        "dial_call_duration": request.values.get('DialCallDuration'),
+        "call_sid": request.values.get('CallSid')
+    })
+    
+    emergency = get_active_emergency()
+    send_debug("emergency_state", {"emergency": emergency})
+
+    if not emergency or emergency.get('id') != emergency_id:
+        send_debug("emergency_mismatch", {
+            "received_id": emergency_id,
+            "active_emergency_id": emergency.get('id') if emergency else None
+        })
+        return '', 200
+
+    # Update emergency with transfer details
+    update_active_emergency('conference_status', request.values.get('DialCallStatus'))
+    update_active_emergency('conference_duration', request.values.get('DialCallDuration'))
+
+    # Send final email
+    subject, body = format_final_email(get_active_emergency())
+    if subject and body:
+        send_to_all(subject, body)
+        send_debug("final_status_email", {"subject": subject})
+
+    # Clean up
+    clear_active_emergency()
+    send_debug("emergency_concluded", {"emergency_id": emergency_id})
+
+    return '', 200
 
 
 @app.route("/technician_call_ended", methods=['POST'])
