@@ -214,6 +214,5 @@ Possible improvements:
 ## Related Documentation
 
 - [Twilio Recordings API](https://www.twilio.com/docs/voice/api/recording)
-- [Admin Dashboard README](admin-dashboard/README.md)
+- [Admin Dashboard README](../../admin-dashboard/README.md)
 - [Settings Management](SETTINGS_MANAGEMENT.md)
-- [Branch Dashboard Documentation](admin-dashboard/templates/branch_dashboard.html)

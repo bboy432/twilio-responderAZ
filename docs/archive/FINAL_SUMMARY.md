@@ -120,14 +120,14 @@ Then check Portainer logs for any `[ERROR]` messages.
 ## 📖 Documentation
 
 ### For Users:
-- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - How to deploy and use this fix
-- **[DEBUGGING_CALLS.md](DEBUGGING_CALLS.md)** - How to troubleshoot call issues
+- **[../deployment/DEPLOYMENT_GUIDE.md](../deployment/DEPLOYMENT_GUIDE.md)** - How to deploy and use this fix
+- **[../features/DEBUGGING_CALLS.md](../features/DEBUGGING_CALLS.md)** - How to troubleshoot call issues
 
 ### For Developers:
 - **[FIX_SUMMARY_DEBUGGING.md](FIX_SUMMARY_DEBUGGING.md)** - Technical details and analysis
 
 ### Quick Reference:
-- **[README.md](README.md)** - Updated with debugging guide link
+- **[../../README.md](../../README.md)** - Updated with debugging guide link
 
 ## 🎉 Impact
 
@@ -191,7 +191,7 @@ Then check Portainer logs for any `[ERROR]` messages.
 If you still have issues after deploying:
 
 1. Check Portainer logs for `[ERROR]` messages
-2. Read [DEBUGGING_CALLS.md](DEBUGGING_CALLS.md) for solutions
+2. Read [../features/DEBUGGING_CALLS.md](../features/DEBUGGING_CALLS.md) for solutions
 3. Run `./test_webhook.sh` to test configuration
 4. Verify all environment variables are set
 5. Check Twilio account is active with credits

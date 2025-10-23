@@ -511,9 +511,9 @@ docker inspect twilio_responder_admin | grep -A 10 Health
 ```
 
 3. **Review documentation:**
-- [DEPLOYMENT.md](DEPLOYMENT.md)
-- [QUICKSTART.md](QUICKSTART.md)
-- [admin-dashboard/README.md](admin-dashboard/README.md)
+- [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md)
+- [../QUICKSTART.md](../QUICKSTART.md)
+- [../admin-dashboard/README.md](../admin-dashboard/README.md)
 
 4. **Common command reference:**
 ```bash
