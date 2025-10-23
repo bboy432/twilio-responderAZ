@@ -1061,14 +1061,13 @@ def connect_technician_to_customer(emergency_id, technician_number):
         send_debug("twilio_client_created", {"for": "customer_connection"})
         
         # Create TwiML to connect technician to the queue
-        dequeue_twiml = f'''
-        <Response>
-            <Say>You are being connected to a customer with an emergency.</Say>
-            <Dial>
-                <Queue>{emergency_id}</Queue>
-            </Dial>
-        </Response>
-        '''
+        # Note: TwiML must start without leading whitespace for Twilio to parse correctly
+        dequeue_twiml = (
+            f'<Response>'
+            f'<Say>You are being connected to a customer with an emergency.</Say>'
+            f'<Dial><Queue>{emergency_id}</Queue></Dial>'
+            f'</Response>'
+        )
         send_debug("dequeue_twiml", {"twiml": dequeue_twiml})
         
         # Make the call to the technician
