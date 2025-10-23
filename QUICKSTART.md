@@ -45,7 +45,7 @@ Fill in all the values for:
    - `rex.axiom-emergencies.com` → `http://twilio_responder_rex:5000`
 
 #### Option B: Via CLI
-See [CLOUDFLARE.md](CLOUDFLARE.md) for detailed CLI instructions.
+See [docs/deployment/CLOUDFLARE.md](docs/deployment/CLOUDFLARE.md) for detailed CLI instructions.
 
 ### 4. Deploy with Docker Compose
 
@@ -123,7 +123,7 @@ docker logs twilio_responder_admin
 
 ## Getting Help
 
-- Check [DEPLOYMENT.md](DEPLOYMENT.md) for detailed configuration
+- Check [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) for detailed configuration
 - Review [admin-dashboard/README.md](admin-dashboard/README.md) for dashboard features
 - Check container logs for errors
 - Verify all environment variables are set correctly
