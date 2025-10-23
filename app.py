@@ -115,7 +115,8 @@ try:
     # Debug line to check if RECIPIENT_PHONES is being loaded
     send_debug("env_debug", {"RECIPIENT_PHONES": os.environ.get('RECIPIENT_PHONES'), "BRANCH_NAME": BRANCH_NAME})
 
-    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
+    # Transfer numbers are optional - only required when enable_transfer_call is true
+    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, PUBLIC_URL, FLASK_PORT]):
         raise ValueError("One or more required environment variables are missing.")
 
 except Exception as e:
