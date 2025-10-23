@@ -43,10 +43,10 @@ def send_debug(event_type, data=None):
     # Use direct cache check to avoid circular dependency with get_setting()
     # Check if _settings_cache exists (it's defined later in the module)
     try:
-        webhook_url = _settings_cache.get('DEBUG_WEBHOOK_URL', DEBUG_WEBHOOK_URL) if _settings_cache else DEBUG_WEBHOOK_URL
+        webhook_url = _settings_cache.get('DEBUG_WEBHOOK_URL', '') if _settings_cache else ''
     except NameError:
         # _settings_cache not yet defined (during module initialization)
-        webhook_url = DEBUG_WEBHOOK_URL
+        webhook_url = ''
     
     if not webhook_url:
         # Still persist to local log even if no webhook is configured
@@ -97,30 +97,29 @@ def send_debug(event_type, data=None):
         except:
             pass
 
-# --- Load Configuration from Environment Variables ---
+# --- Load Bootstrap Configuration from Environment Variables ---
+# Only load minimal environment variables needed for bootstrapping
+# All other configuration should come from the admin dashboard
 try:
-    TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
-    TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
-    TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
-    TWILIO_AUTOMATED_NUMBER = os.environ.get('TWILIO_AUTOMATED_NUMBER')
-    TWILIO_TRANSFER_NUMBER = os.environ.get('TWILIO_TRANSFER_NUMBER')
-    TRANSFER_TARGET_PHONE_NUMBER = os.environ.get('TRANSFER_TARGET_PHONE_NUMBER')
-    PUBLIC_URL = os.environ.get('PUBLIC_URL')
-    FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
-    RECIPIENT_EMAILS = os.environ.get('RECIPIENT_EMAILS', '')
-    DEBUG_WEBHOOK_URL = os.environ.get('DEBUG_WEBHOOK_URL', '')
+    # Bootstrap-only environment variables (required for startup)
     BRANCH_NAME = os.environ.get('BRANCH_NAME', 'default')
     ADMIN_DASHBOARD_URL = os.environ.get('ADMIN_DASHBOARD_URL', 'http://admin-dashboard:5000')
+    FLASK_PORT = int(os.environ.get('FLASK_PORT', 5000))
+    PUBLIC_URL = os.environ.get('PUBLIC_URL', '')
     
-    # Debug line to check if RECIPIENT_PHONES is being loaded
-    send_debug("env_debug", {"RECIPIENT_PHONES": os.environ.get('RECIPIENT_PHONES'), "BRANCH_NAME": BRANCH_NAME})
+    # Debug line to track configuration source
+    send_debug("bootstrap_config", {"BRANCH_NAME": BRANCH_NAME, "ADMIN_DASHBOARD_URL": ADMIN_DASHBOARD_URL})
 
-    if not all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_AUTOMATED_NUMBER, TWILIO_TRANSFER_NUMBER, TRANSFER_TARGET_PHONE_NUMBER, PUBLIC_URL, FLASK_PORT]):
-        raise ValueError("One or more required environment variables are missing.")
+    # Validate bootstrap variables
+    if not BRANCH_NAME:
+        raise ValueError("BRANCH_NAME environment variable is required for startup.")
+    
+    if not PUBLIC_URL:
+        print("WARNING: PUBLIC_URL not set. This may cause issues with Twilio callbacks.")
 
 except Exception as e:
     # Critical config load failure - print and send webhook
-    print(f"CRITICAL ERROR: Could not load configuration from environment variables: {e}")
+    print(f"CRITICAL ERROR: Could not load bootstrap configuration from environment variables: {e}")
     send_debug("config_load_error", {"error": str(e)})
     exit()
 
@@ -151,7 +150,7 @@ def load_settings_from_admin():
 
 
 def get_setting(key, default=''):
-    """Get a setting value, checking cache first, then environment variables"""
+    """Get a setting value from admin dashboard settings (no environment variable fallback)"""
     global _settings_cache, _settings_last_updated
     
     # Refresh cache every 5 minutes
@@ -162,14 +161,20 @@ def get_setting(key, default=''):
     if _settings_cache and key in _settings_cache:
         return _settings_cache[key]
     
-    # Fallback to environment variable
-    return os.environ.get(key, default)
+    # Return default value (no environment variable fallback)
+    # All configuration should come from admin dashboard
+    return default
 
 
 def get_twilio_client():
-    """Get Twilio client with current settings"""
-    account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
-    auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
+    """Get Twilio client with current settings from admin dashboard"""
+    account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
+    auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
+    
+    if not account_sid or not auth_token:
+        send_debug("twilio_client_error", {"error": "Twilio credentials not configured in admin dashboard"})
+        raise ValueError("Twilio credentials not configured. Please configure via admin dashboard.")
+    
     return Client(account_sid, auth_token)
 
 
@@ -190,9 +195,10 @@ public_url = PUBLIC_URL
 
 # --- Email Placeholder ---
 def send_to_all(subject, body):
-    email_recipients = [e.strip() for e in RECIPIENT_EMAILS.split(',') if e.strip()]
+    recipient_emails_str = get_setting('RECIPIENT_EMAILS', '')
+    email_recipients = [e.strip() for e in recipient_emails_str.split(',') if e.strip()]
     if not email_recipients:
-        send_debug("email_skipped", {"reason": "RECIPIENT_EMAILS not set"})
+        send_debug("email_skipped", {"reason": "RECIPIENT_EMAILS not configured in admin dashboard"})
         return
 
     # Note: Email sending is currently simulated. 
@@ -429,16 +435,16 @@ def format_final_email(emergency_data):
     return subject, body
 
 def send_sms_to_all_recipients(client, sms_message):
-    recipients_str = get_setting('RECIPIENT_PHONES', os.environ.get('RECIPIENT_PHONES', ''))
+    recipients_str = get_setting('RECIPIENT_PHONES', '')
     
     send_debug("sms_attempt", {
-        "recipients_from_env": recipients_str,
-        "twilio_number": get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER),
+        "recipients_from_settings": recipients_str,
+        "twilio_number": get_setting('TWILIO_AUTOMATED_NUMBER', ''),
         "message": sms_message
     })
     
     if not recipients_str:
-        send_debug("sms_recipients_not_set", {"message": "RECIPIENT_PHONES not set"})
+        send_debug("sms_recipients_not_set", {"message": "RECIPIENT_PHONES not configured in admin dashboard"})
         return
 
     # Parse recipients - support both JSON format (with labels) and comma-separated format
@@ -458,7 +464,7 @@ def send_sms_to_all_recipients(client, sms_message):
         phone_numbers = [p.strip() for p in recipients_str.split(',') if p.strip()]
         send_debug("recipients_parsed_csv", {"count": len(phone_numbers), "recipients": phone_numbers})
     
-    automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+    automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
     
     for phone_number in phone_numbers:
         try:
@@ -490,19 +496,19 @@ def make_emergency_call(emergency_id, emergency_data):
             send_debug("emergency_call_validation_error", {"error": error_msg})
             return False, error_msg
         
-        # Get Twilio configuration
-        account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
-        auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
-        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+        # Get Twilio configuration from admin dashboard
+        account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
+        auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
+        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
         
         # Validate Twilio configuration
         if not account_sid or not auth_token:
-            error_msg = "Twilio credentials (ACCOUNT_SID or AUTH_TOKEN) are not configured"
+            error_msg = "Twilio credentials (ACCOUNT_SID or AUTH_TOKEN) are not configured in admin dashboard"
             send_debug("emergency_call_config_error", {"error": error_msg})
             return False, error_msg
         
         if not automated_number:
-            error_msg = "TWILIO_AUTOMATED_NUMBER is not configured"
+            error_msg = "TWILIO_AUTOMATED_NUMBER is not configured in admin dashboard"
             send_debug("emergency_call_config_error", {"error": error_msg})
             return False, error_msg
         
@@ -833,7 +839,7 @@ def debug_firehose():
       - metadata: environment and timestamp
     """
     # Accept either explicit webhook_url param or the configured DEBUG_WEBHOOK_URL from settings
-    target = request.args.get('webhook_url') or request.args.get('webhook') or get_setting('DEBUG_WEBHOOK_URL', DEBUG_WEBHOOK_URL)
+    target = request.args.get('webhook_url') or request.args.get('webhook') or get_setting('DEBUG_WEBHOOK_URL', '')
     if not target:
         return jsonify({"error": "No webhook URL configured. Set DEBUG_WEBHOOK_URL or pass webhook_url param."}), 400
 
@@ -1042,15 +1048,15 @@ def connect_technician_to_customer(emergency_id, technician_number):
             "known_contact": KNOWN_CONTACTS.get(technician_number, 'Unknown')
         })
         
-        # Get current settings
-        account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
-        auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
-        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+        # Get current settings from admin dashboard
+        account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
+        auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
+        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
         
         # Validate configuration
         if not all([account_sid, auth_token, automated_number]):
-            send_debug("config_error", {"message": "Missing required Twilio configuration"})
-            raise ValueError("Missing required Twilio configuration")
+            send_debug("config_error", {"message": "Missing required Twilio configuration in admin dashboard"})
+            raise ValueError("Missing required Twilio configuration in admin dashboard")
             
         # Validate phone number
         if not technician_number or not technician_number.startswith('+'):
