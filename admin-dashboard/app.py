@@ -968,9 +968,9 @@ def get_call_recordings(branch):
         page = int(request.args.get('page', 0))
         
         # Fetch recordings
+        # Note: list() method doesn't support 'page' parameter, using limit for result control
         recordings = client.recordings.list(
-            page_size=page_size,
-            page=page
+            limit=page_size
         )
         
         # Filter by branch phone numbers if available
