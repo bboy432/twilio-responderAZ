@@ -47,6 +47,10 @@
             max-height: 2000px;
             transition: max-height 0.5s ease;
         }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -144,6 +148,39 @@
         </div>
         {% endif %}
 
+        {% if is_admin or (branch_key in user_permissions and user_permissions[branch_key].can_view) %}
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleCollapsible('call-recordings'); loadCallRecordingsOnOpen('{{ branch_key }}');">
+                <h3>📞 Call Recordings</h3>
+                <span class="collapsible-toggle" id="call-recordings-toggle">▼</span>
+            </div>
+            <div class="collapsible-content" id="call-recordings-content">
+                <div class="branch-detail-card" style="margin-top: 0;">
+                    <p style="margin-bottom: 15px; color: #666;">
+                        View and listen to call recordings from Twilio. Recordings are automatically filtered to show only calls associated with this branch.
+                    </p>
+                    
+                    <div id="recordings-loading" style="display: none; text-align: center; padding: 20px;">
+                        <div style="display: inline-block;">
+                            <div style="border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+                            <p style="margin-top: 10px;">Loading recordings...</p>
+                        </div>
+                    </div>
+                    
+                    <div id="recordings-error" style="display: none; padding: 15px; background: #f8d7da; color: #721c24; border-radius: 4px; margin-bottom: 15px;"></div>
+                    
+                    <div id="recordings-container">
+                        <p style="text-align: center; color: #666; padding: 20px;">
+                            Click the section header to load call recordings
+                        </p>
+                    </div>
+                    
+                    <div id="recordings-pagination"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% if is_admin or (branch_key in user_permissions and (user_permissions[branch_key].can_edit_basic_settings or user_permissions[branch_key].can_edit_advanced_settings or user_permissions[branch_key].can_restart)) %}
         <div class="collapsible-section">
             <div class="collapsible-header" onclick="toggleCollapsible('advanced-info')">
@@ -216,6 +253,18 @@
             } else {
                 content.classList.add('open');
                 toggle.classList.add('open');
+            }
+        }
+        
+        let recordingsLoaded = false;
+        function loadCallRecordingsOnOpen(branchKey) {
+            // Only load once when the section is first opened
+            if (!recordingsLoaded) {
+                const content = document.getElementById('call-recordings-content');
+                if (content && content.classList.contains('open')) {
+                    loadCallRecordings(branchKey, 0);
+                    recordingsLoaded = true;
+                }
             }
         }
     </script>
