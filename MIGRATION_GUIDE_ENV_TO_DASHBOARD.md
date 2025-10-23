@@ -5,7 +5,7 @@ This guide will help you migrate from environment variable-based configuration t
 ## Overview
 
 **What Changed:**
-- Branch instances (`twilio-app-tuc`, `twilio-app-poc`, `twilio-app-rex`) no longer read Twilio and notification settings from environment variables
+- Branch instances (TUC, POC, REX) no longer read Twilio and notification settings from environment variables
 - All operational configuration now comes exclusively from the admin dashboard database
 - Environment variables serve only as initial defaults for the admin dashboard
 
@@ -27,7 +27,7 @@ This guide will help you migrate from environment variable-based configuration t
 ### Step 2: Verify Admin Dashboard Access
 
 1. Access your admin dashboard: `https://axiom-emergencies.com`
-2. Log in with admin credentials (default: `axiomadmin` / `Dannyle44!`)
+2. Log in with admin credentials (see your secure credential store or initial setup documentation)
 3. Verify you can see all three branches (Tucson, Pocatello, Rexburg)
 
 ### Step 3: Migrate Each Branch
@@ -110,6 +110,10 @@ REX_PUBLIC_URL=https://rex.axiom-emergencies.com
 If you cleaned up the docker-compose and .env files:
 
 ```bash
+# Verify you're in the correct directory and branch
+cd /path/to/twilio-responderAZ
+git status
+
 # Pull the latest changes
 git pull
 
@@ -178,13 +182,16 @@ If you encounter issues:
 
 For brand new deployments after this change:
 
-1. **Set Minimal Environment Variables:**
+1. **Set Minimal Bootstrap Environment Variables:**
    ```yaml
    environment:
      - BRANCH_NAME=tuc
      - ADMIN_DASHBOARD_URL=http://admin-dashboard:5000
      - PUBLIC_URL=https://tuc.axiom-emergencies.com
+     - FLASK_PORT=5000  # Optional, defaults to 5000 if not set
    ```
+   
+   Note: Only `BRANCH_NAME`, `ADMIN_DASHBOARD_URL`, and `PUBLIC_URL` are strictly required. `FLASK_PORT` is optional and defaults to 5000.
 
 2. **Configure via Dashboard:**
    - Log in to admin dashboard
