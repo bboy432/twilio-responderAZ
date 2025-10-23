@@ -4,7 +4,9 @@ This guide explains how to manage branch settings through the admin dashboard in
 
 ## Overview
 
-Previously, all Twilio and notification settings had to be configured as environment variables in Portainer. Now, authorized users can edit these settings directly through the admin dashboard web interface. Settings are stored in the database and automatically synchronized with the branch instances.
+**Branch instances are now configured 100% through the admin dashboard web interface.** Environment variables are no longer used for operational configuration - they serve only as optional initial defaults.
+
+Authorized users can edit all Twilio and notification settings directly through the admin dashboard. Settings are stored in the database and automatically synchronized with the branch instances every 5 minutes (or immediately after saving).
 
 ## Permission Levels
 
@@ -54,10 +56,12 @@ Users with "Edit Advanced Settings" permission (or admins) can modify:
 - Password fields can be left blank to keep existing values
 - All changes are logged with username and timestamp
 
-### 4. Fallback to Environment Variables
-- If the admin dashboard is unavailable, branches use environment variables
-- Seamless failover ensures system continues working
-- Database settings take priority over environment variables when available
+### 4. Environment Variables as Initial Defaults Only
+- Environment variables (e.g., `TUC_TWILIO_ACCOUNT_SID`) serve as initial defaults
+- The admin dashboard uses these defaults when loading settings for the first time
+- Once settings are saved via the dashboard, database values take precedence
+- Branch instances do NOT read environment variables directly - all config comes from admin dashboard
+- If the admin dashboard is unavailable, branches cannot function (by design for centralized management)
 
 ## Accessing Settings
 
@@ -152,28 +156,29 @@ Triggers immediate reload of settings from admin dashboard.
 
 ### Settings Priority
 
-1. **Database Settings** (highest priority)
+1. **Database Settings** (used by branch instances)
    - Settings saved through the dashboard
    - Stored in admin database
+   - This is the ONLY source branch instances read from
    
-2. **Environment Variables** (fallback)
-   - Original Portainer/docker-compose settings
-   - Used if database is unavailable
+2. **Environment Variables** (initial defaults for admin dashboard only)
+   - Used by admin dashboard as defaults when settings are not yet in database
+   - NOT read by branch instances directly
+   - Example: `TUC_TWILIO_ACCOUNT_SID` becomes default for Tucson branch's TWILIO_ACCOUNT_SID
 
 ### How It Works
 
-1. **On Startup**: Branch instances try to load settings from admin dashboard
-2. **Every 5 Minutes**: Settings cache is automatically refreshed
-3. **On Save**: Admin dashboard triggers immediate reload on the affected branch
-4. **On Failure**: Branch falls back to environment variables
+1. **On Startup**: Branch instances load settings from admin dashboard (required)
+2. **Every 5 Minutes**: Settings cache is automatically refreshed from admin dashboard
+3. **On Save**: Admin dashboard updates database, branch picks up changes within 5 minutes
+4. **On Failure**: If admin dashboard is unreachable, branch cannot function (ensure high availability)
 
 ### Settings Cache
 
 Branch instances maintain a local cache of settings:
-- Cache is refreshed every 5 minutes
-- Cache is updated immediately when settings are saved
-- If admin dashboard is unreachable, cache retains last known values
-- Environment variables are used as ultimate fallback
+- Cache is refreshed every 5 minutes from admin dashboard
+- If admin dashboard is unreachable during refresh, cache retains last known values
+- No environment variable fallback (all configuration must come from admin dashboard)
 
 ## Migration from Environment Variables
 
@@ -181,19 +186,28 @@ Branch instances maintain a local cache of settings:
 
 If you have an existing deployment with environment variables set in Portainer:
 
-1. Settings will continue to work using environment variables
-2. Once you save settings through the dashboard, database values take priority
-3. You can leave environment variables in place as a fallback
-4. Or remove them after confirming database settings work
+1. **Phase 1 - Automatic Migration**: Admin dashboard reads existing env vars as defaults
+2. **Phase 2 - Save to Database**: Open each branch's settings in admin dashboard and click "Save"
+3. **Phase 3 - Verify**: Check that branches work correctly with database settings
+4. **Phase 4 - Cleanup (Optional)**: Remove operational env vars from Portainer, keep only:
+   - `BRANCH_NAME` (e.g., `tuc`, `poc`, `rex`)
+   - `ADMIN_DASHBOARD_URL` (e.g., `http://admin-dashboard:5000`)
+   - `PUBLIC_URL` (e.g., `https://tuc.axiom-emergencies.com`)
+   - `FLASK_PORT` (optional, default: 5000)
 
 ### New Deployments
 
 For new deployments:
 
-1. Set minimal required environment variables in Portainer
-2. Configure all branch-specific settings through the dashboard
-3. Settings are automatically stored in the database
-4. No need to redeploy containers when changing settings
+1. Set **only** bootstrap environment variables in docker-compose:
+   - `BRANCH_NAME`
+   - `ADMIN_DASHBOARD_URL`
+   - `PUBLIC_URL`
+   - `FLASK_PORT` (optional)
+2. Optionally set initial defaults (e.g., `TUC_TWILIO_ACCOUNT_SID`) for admin dashboard
+3. Configure all branch settings through the admin dashboard web interface
+4. Settings are stored in database and automatically synchronized
+5. No need to redeploy containers when changing settings
 
 ## Troubleshooting
 
@@ -208,7 +222,8 @@ For new deployments:
 
 - Check that `ADMIN_DASHBOARD_URL` is set correctly in docker-compose
 - Verify admin-dashboard container is running
-- Branch will fall back to environment variables automatically
+- Check Docker network connectivity between containers
+- Branch instances REQUIRE admin dashboard for configuration (no env var fallback)
 
 ### Sensitive Values Not Saving
 
