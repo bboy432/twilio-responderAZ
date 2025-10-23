@@ -35,3 +35,7 @@ This directory contains detailed documentation for the Twilio Responder system.
 ## Archive
 
 Historical development notes and implementation summaries are stored in the [archive/](archive/) directory.
+
+## About This Organization
+
+See [ORGANIZATION.md](ORGANIZATION.md) for details about how documentation is organized and maintained.
