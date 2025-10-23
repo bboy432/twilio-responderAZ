@@ -143,9 +143,10 @@ def load_settings_from_admin():
             send_debug("settings_loaded_from_admin", {"branch": BRANCH_NAME, "keys": list(settings.keys())})
             return settings
     except Exception as e:
-        send_debug("settings_load_error", {"error": str(e), "using_env_vars": True})
+        send_debug("settings_load_error", {"error": str(e), "admin_dashboard_unreachable": True})
     
-    # Fallback to environment variables
+    # Return None if admin dashboard is unreachable
+    # Application will not function properly without settings
     return None
 
 
