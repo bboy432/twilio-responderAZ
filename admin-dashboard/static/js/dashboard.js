@@ -235,3 +235,116 @@ window.addEventListener('beforeunload', () => {
         clearInterval(autoRefreshInterval);
     }
 });
+
+// Call Recordings Functions
+let currentRecordingsPage = 0;
+let isLoadingRecordings = false;
+
+function loadCallRecordings(branchKey, page = 0) {
+    if (isLoadingRecordings) return;
+    isLoadingRecordings = true;
+    
+    const recordingsContainer = document.getElementById('recordings-container');
+    const loadingIndicator = document.getElementById('recordings-loading');
+    const errorMessage = document.getElementById('recordings-error');
+    const paginationControls = document.getElementById('recordings-pagination');
+    
+    // Show loading state
+    if (loadingIndicator) loadingIndicator.style.display = 'block';
+    if (errorMessage) errorMessage.style.display = 'none';
+    
+    fetch(`/api/branch/${branchKey}/recordings?page=${page}&page_size=20`)
+        .then(response => response.json())
+        .then(data => {
+            isLoadingRecordings = false;
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            
+            if (data.success && data.recordings) {
+                currentRecordingsPage = page;
+                displayRecordings(data.recordings, recordingsContainer);
+                updatePaginationControls(branchKey, page, data.count, paginationControls);
+            } else {
+                if (errorMessage) {
+                    errorMessage.textContent = data.error || 'Failed to load recordings';
+                    errorMessage.style.display = 'block';
+                }
+                if (recordingsContainer) {
+                    recordingsContainer.innerHTML = '<p style="text-align: center; color: #666;">No recordings available</p>';
+                }
+            }
+        })
+        .catch(error => {
+            isLoadingRecordings = false;
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            if (errorMessage) {
+                errorMessage.textContent = 'Error loading recordings: ' + error.message;
+                errorMessage.style.display = 'block';
+            }
+            console.error('Error loading recordings:', error);
+        });
+}
+
+function displayRecordings(recordings, container) {
+    if (!container) return;
+    
+    if (recordings.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No call recordings found for this branch</p>';
+        return;
+    }
+    
+    let html = '<div class="recordings-list">';
+    
+    recordings.forEach(recording => {
+        const dateCreated = recording.date_created ? new Date(recording.date_created).toLocaleString() : 'Unknown';
+        const duration = recording.duration ? `${recording.duration} seconds` : 'N/A';
+        
+        html += `
+            <div class="recording-item" style="background: #f8f9fa; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #007bff;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: bold; margin-bottom: 5px;">📞 ${recording.from} → ${recording.to}</div>
+                        <div style="color: #666; font-size: 0.9em;">
+                            <span>📅 ${dateCreated}</span>
+                            <span style="margin-left: 15px;">⏱️ ${duration}</span>
+                            <span style="margin-left: 15px;">📊 ${recording.status}</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <audio controls style="width: 100%; max-width: 400px;">
+                        <source src="${recording.media_url}" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <div style="margin-top: 8px;">
+                        <a href="${recording.media_url}" download class="btn btn-secondary" style="font-size: 0.85em; padding: 5px 12px; display: inline-block;">
+                            ⬇️ Download
+                        </a>
+                        <span style="margin-left: 10px; color: #999; font-size: 0.85em;">SID: ${recording.sid}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function updatePaginationControls(branchKey, currentPage, count, container) {
+    if (!container) return;
+    
+    let html = '<div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">';
+    
+    if (currentPage > 0) {
+        html += `<button onclick="loadCallRecordings('${branchKey}', ${currentPage - 1})" class="btn btn-secondary">← Previous</button>`;
+    }
+    
+    html += `<span style="padding: 8px 15px; background: #f8f9fa; border-radius: 4px;">Page ${currentPage + 1}</span>`;
+    
+    if (count >= 20) {
+        html += `<button onclick="loadCallRecordings('${branchKey}', ${currentPage + 1})" class="btn btn-secondary">Next →</button>`;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}

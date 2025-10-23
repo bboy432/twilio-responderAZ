@@ -246,6 +246,25 @@
                         </label>
                         <div class="help-text">Allow calls to be transferred to target number</div>
                     </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="enable_call_recording" name="enable_call_recording" 
+                                   {% if settings.get('enable_call_recording', 'true') == 'true' %}checked{% endif %}
+                                   style="width: auto; margin-right: 10px;">
+                            <span>Enable Call Recordings Display</span>
+                        </label>
+                        <div class="help-text">Show call recordings section in branch dashboard</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="call_recording_page_size">Call Recordings Per Page</label>
+                        <input type="number" id="call_recording_page_size" name="call_recording_page_size" 
+                               value="{{ settings.get('call_recording_page_size', '20') }}" 
+                               min="5" max="50" step="5"
+                               placeholder="20">
+                        <div class="help-text">Number of recordings to display per page (5-50)</div>
+                    </div>
                 </div>
                 {% else %}
                 <div class="form-section">
