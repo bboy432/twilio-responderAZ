@@ -51,9 +51,7 @@ BASIC_SETTINGS = [
     'enable_auto_call',
     'enable_transfer_call',
     'enable_emails',
-    'enable_texts',
-    'enable_call_recording',
-    'call_recording_page_size'
+    'enable_texts'
 ]
 
 ADVANCED_SETTINGS = [
@@ -936,103 +934,6 @@ def internal_branch_settings(branch):
     
     # Return all settings (including sensitive ones) since this is internal
     return jsonify(settings)
-
-
-@app.route('/api/branch/<branch>/recordings', methods=['GET'])
-@login_required
-def get_call_recordings(branch):
-    """Fetch call recordings for a specific branch from Twilio"""
-    if branch not in BRANCHES:
-        return jsonify({'error': 'Invalid branch'}), 404
-    
-    # Check permissions
-    if not session.get('is_admin'):
-        perms = get_user_permissions(session['user_id'])
-        if branch not in perms or not perms[branch]['can_view']:
-            return jsonify({'error': 'Permission denied'}), 403
-    
-    # Get Twilio credentials for this branch
-    settings = get_branch_settings_with_defaults(branch)
-    account_sid = settings.get('TWILIO_ACCOUNT_SID')
-    auth_token = settings.get('TWILIO_AUTH_TOKEN')
-    
-    if not account_sid or not auth_token:
-        return jsonify({'error': 'Twilio credentials not configured for this branch'}), 400
-    
-    try:
-        # Initialize Twilio client
-        client = Client(account_sid, auth_token)
-        
-        # Get query parameters for pagination and filtering
-        page_size = int(request.args.get('page_size', 20))
-        page = int(request.args.get('page', 0))
-        
-        # Fetch recordings
-        recordings = client.recordings.list(
-            page_size=page_size,
-            page=page
-        )
-        
-        # Filter by branch phone numbers if available
-        branch_numbers = []
-        if settings.get('TWILIO_PHONE_NUMBER'):
-            branch_numbers.append(settings.get('TWILIO_PHONE_NUMBER'))
-        if settings.get('TWILIO_AUTOMATED_NUMBER'):
-            branch_numbers.append(settings.get('TWILIO_AUTOMATED_NUMBER'))
-        if settings.get('TWILIO_TRANSFER_NUMBER'):
-            branch_numbers.append(settings.get('TWILIO_TRANSFER_NUMBER'))
-        
-        # Format recordings for frontend
-        recordings_data = []
-        for recording in recordings:
-            # Fetch call details to get from/to numbers
-            try:
-                call = client.calls(recording.call_sid).fetch()
-                from_number = call.from_formatted
-                to_number = call.to_formatted
-                
-                # Filter by branch numbers if we have them
-                if branch_numbers:
-                    if not (from_number in branch_numbers or to_number in branch_numbers):
-                        continue
-                
-                recordings_data.append({
-                    'sid': recording.sid,
-                    'call_sid': recording.call_sid,
-                    'duration': recording.duration,
-                    'date_created': recording.date_created.isoformat() if recording.date_created else None,
-                    'from': from_number,
-                    'to': to_number,
-                    'status': recording.status,
-                    'uri': recording.uri,
-                    'media_url': f"https://api.twilio.com{recording.uri.replace('.json', '.mp3')}"
-                })
-            except Exception as e:
-                # If we can't fetch call details, include recording without filtering
-                print(f"Error fetching call details for recording {recording.sid}: {e}")
-                recordings_data.append({
-                    'sid': recording.sid,
-                    'call_sid': recording.call_sid,
-                    'duration': recording.duration,
-                    'date_created': recording.date_created.isoformat() if recording.date_created else None,
-                    'from': 'Unknown',
-                    'to': 'Unknown',
-                    'status': recording.status,
-                    'uri': recording.uri,
-                    'media_url': f"https://api.twilio.com{recording.uri.replace('.json', '.mp3')}"
-                })
-        
-        return jsonify({
-            'success': True,
-            'recordings': recordings_data,
-            'page': page,
-            'page_size': page_size,
-            'count': len(recordings_data)
-        })
-        
-    except Exception as e:
-        print(f"Error fetching recordings for {branch}: {e}")
-        return jsonify({'error': 'Failed to fetch recordings from Twilio'}), 500
 
 
 # Initialize database on module load (runs with both gunicorn and direct execution)

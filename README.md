@@ -33,7 +33,6 @@ docker-compose -f docker-compose.multi.yml up -d
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
 - **[DEBUGGING_CALLS.md](DEBUGGING_CALLS.md)** - 🆕 Troubleshoot call failures
-- **[CALL_RECORDINGS_FEATURE.md](CALL_RECORDINGS_FEATURE.md)** - 🆕 Call recordings feature documentation
 - **[SETTINGS_MANAGEMENT.md](SETTINGS_MANAGEMENT.md)** - Manage settings through dashboard
 - **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
 - **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
@@ -49,7 +48,6 @@ docker-compose -f docker-compose.multi.yml up -d
 4. **Branch Control** - Enable/disable branches with confirmation and SMS notifications
 5. **Real-Time Status** - Live status updates for each branch (auto-refresh every 30s)
 6. **Permission System** - Granular control over view, trigger, and disable permissions
-7. **Call Recordings** - 🆕 View, play, and download call recordings per branch
 
 ### Each Branch Instance
 - Independent Twilio configuration
