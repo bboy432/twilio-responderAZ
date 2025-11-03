@@ -1151,16 +1151,25 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
         send_debug("twilio_client_created", {"for": "customer_transfer"})
         
         # Create TwiML to dequeue customer and transfer to target
-        # Use Dial with Number to transfer the dequeued customer
-        caller_id_attr = f' callerId="{transfer_from}"' if transfer_from and transfer_from.startswith('+') else ''
-        transfer_twiml = (
-            f'<Response>'
-            f'<Say>Transferring the customer to you now.</Say>'
-            f'<Dial{caller_id_attr} action="{public_url}/transfer_complete?emergency_id={emergency_id}" timeout="30">'
-            f'<Queue>{emergency_id}</Queue>'
-            f'</Dial>'
-            f'</Response>'
+        # Use proper TwiML library instead of string concatenation
+        response = VoiceResponse()
+        response.say("Transferring the customer to you now.")
+        
+        # Dial with Queue to dequeue the waiting customer
+        dial = Dial(
+            action=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
+            timeout=30
         )
+        
+        # Set caller ID if configured
+        if transfer_from and transfer_from.startswith('+'):
+            dial.caller_id = transfer_from
+        
+        # Connect to the queue to dequeue the customer
+        dial.queue(emergency_id)
+        response.append(dial)
+        
+        transfer_twiml = str(response)
         send_debug("transfer_twiml", {"twiml": transfer_twiml})
         
         # Make the call to the transfer target to dequeue and connect the customer
