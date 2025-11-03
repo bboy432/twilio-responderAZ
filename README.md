@@ -30,24 +30,14 @@ docker-compose -f docker-compose.multi.yml up -d
 
 ## 📖 Documentation
 
-### Getting Started
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
-- **[docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-
-### Features & Configuration
-- **[docs/features/CALL_RECORDINGS_FEATURE.md](docs/features/CALL_RECORDINGS_FEATURE.md)** - Call recordings documentation
-- **[docs/features/SETTINGS_MANAGEMENT.md](docs/features/SETTINGS_MANAGEMENT.md)** - Web-based settings management
-- **[docs/features/DEBUGGING_CALLS.md](docs/features/DEBUGGING_CALLS.md)** - Troubleshoot call failures
-- **[docs/features/PHONE_LABELS_FEATURE.md](docs/features/PHONE_LABELS_FEATURE.md)** - Phone number labels
-
-### Dashboards
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- **[DEBUGGING_CALLS.md](DEBUGGING_CALLS.md)** - 🆕 Troubleshoot call failures
+- **[CALL_RECORDINGS_FEATURE.md](CALL_RECORDINGS_FEATURE.md)** - 🆕 Call recordings feature documentation
+- **[SETTINGS_MANAGEMENT.md](SETTINGS_MANAGEMENT.md)** - Manage settings through dashboard
+- **[PORTAINER.md](PORTAINER.md)** - Portainer stack configuration
+- **[CLOUDFLARE.md](CLOUDFLARE.md)** - Cloudflare tunnel setup
 - **[admin-dashboard/README.md](admin-dashboard/README.md)** - Admin dashboard features
-- **[dashboard/README.md](dashboard/README.md)** - Monitoring dashboard
-
-### Additional Documentation
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture overview
-- **[docs/README.md](docs/README.md)** - Complete documentation index
 - **[API Reference](#api-reference)** - Below in this document
 
 ## 🎯 Features

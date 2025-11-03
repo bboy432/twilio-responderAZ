@@ -142,7 +142,7 @@ docker exec twilio_responder_tuc env | grep TWILIO
 ### "Still can't figure out the issue"
 
 **Next steps:**
-1. Read [../features/DEBUGGING_CALLS.md](../features/DEBUGGING_CALLS.md) for detailed troubleshooting
+1. Read [DEBUGGING_CALLS.md](DEBUGGING_CALLS.md) for detailed troubleshooting
 2. Check all environment variables are set correctly
 3. Verify Twilio account is active and has credits
 4. Test with the test script: `./test_webhook.sh`
@@ -155,8 +155,8 @@ docker exec twilio_responder_tuc env | grep TWILIO
 - Updated startup message to remind about log locations
 
 ### Documentation Added:
-- **[../features/DEBUGGING_CALLS.md](../features/DEBUGGING_CALLS.md)**: Complete debugging guide
-- **[../archive/FIX_SUMMARY_DEBUGGING.md](../archive/FIX_SUMMARY_DEBUGGING.md)**: Technical details of the fix
+- **DEBUGGING_CALLS.md**: Complete debugging guide
+- **FIX_SUMMARY_DEBUGGING.md**: Technical details of the fix
 - **DEPLOYMENT_GUIDE.md** (this file): How to deploy and use
 
 ### What Stayed the Same:
@@ -183,8 +183,8 @@ docker exec twilio_responder_tuc env | grep TWILIO
 ## Need Help?
 
 1. **Read the docs first:**
-   - [../features/DEBUGGING_CALLS.md](../features/DEBUGGING_CALLS.md) - Troubleshooting guide
-   - [../archive/FIX_SUMMARY_DEBUGGING.md](../archive/FIX_SUMMARY_DEBUGGING.md) - Technical details
+   - [DEBUGGING_CALLS.md](DEBUGGING_CALLS.md) - Troubleshooting guide
+   - [FIX_SUMMARY_DEBUGGING.md](FIX_SUMMARY_DEBUGGING.md) - Technical details
 
 2. **Check the logs:**
    - Look for `[ERROR]` lines in Portainer

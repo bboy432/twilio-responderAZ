@@ -83,7 +83,7 @@ CLOUDFLARE_TOKEN=
    - Username: `axiomadmin`
    - Password: `Dannyle44!`
 4. Configure Twilio webhooks for each branch
-5. **Optional**: Edit branch settings through the dashboard (see [../features/SETTINGS_MANAGEMENT.md](../features/SETTINGS_MANAGEMENT.md))
+5. **Optional**: Edit branch settings through the dashboard (see [SETTINGS_MANAGEMENT.md](SETTINGS_MANAGEMENT.md))
 6. Create additional users if needed
 
 ## Managing Settings
@@ -94,7 +94,7 @@ You have two options for managing settings:
 - Settings can be edited through the web interface
 - Changes take effect automatically
 - No container restart required
-- See [../features/SETTINGS_MANAGEMENT.md](../features/SETTINGS_MANAGEMENT.md) for details
+- See [SETTINGS_MANAGEMENT.md](SETTINGS_MANAGEMENT.md) for details
 
 ### Option 2: Through Portainer (Legacy)
 - Edit environment variables in the stack
