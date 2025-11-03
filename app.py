@@ -19,6 +19,10 @@ import uuid
 # Docker-friendly log path (inside container)
 LOG_PATH = "/app/logs/app.log"
 
+# Delay before initiating connection after customer enters queue
+# This ensures the customer is properly enqueued before dequeue attempt
+CUSTOMER_ENQUEUE_DELAY = 1  # seconds
+
 # It's good practice to wrap third-party library imports in a try-except block
 try:
     from twilio.rest import Client
@@ -1044,12 +1048,15 @@ def handle_incoming_twilio_call():
                 # The transfer will dequeue the customer from the queue
                 if technician_already_informed:
                     # Schedule the transfer to happen shortly after this response completes
-                    import threading
-                    def delayed_transfer():
-                        import time
-                        time.sleep(1)  # Brief delay to ensure customer is enqueued
-                        transfer_customer_to_target(emergency_id, transfer_target, transfer_from)
-                    threading.Thread(target=delayed_transfer, daemon=True).start()
+                    # Use lambda to capture current values and avoid race conditions
+                    def delayed_transfer(eid, target, from_num):
+                        time.sleep(CUSTOMER_ENQUEUE_DELAY)
+                        transfer_customer_to_target(eid, target, from_num)
+                    threading.Thread(
+                        target=delayed_transfer,
+                        args=(emergency_id, transfer_target, transfer_from),
+                        daemon=True
+                    ).start()
         else:
             # Queue mode: original behavior
             response.say("Please hold while we connect you to the emergency technician.")
@@ -1065,12 +1072,16 @@ def handle_incoming_twilio_call():
             # If technician was already informed, immediately connect
             if technician_already_informed:
                 # Schedule the connection to happen shortly after this response completes
-                import threading
-                def delayed_connect():
-                    import time
-                    time.sleep(1)  # Brief delay to ensure customer is enqueued
-                    connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
-                threading.Thread(target=delayed_connect, daemon=True).start()
+                # Use lambda to capture current values and avoid race conditions
+                technician_number = emergency.get('technician_number')
+                def delayed_connect(eid, tech_num):
+                    time.sleep(CUSTOMER_ENQUEUE_DELAY)
+                    connect_technician_to_customer(eid, tech_num)
+                threading.Thread(
+                    target=delayed_connect,
+                    args=(emergency_id, technician_number),
+                    daemon=True
+                ).start()
             
     except Exception as e:
         send_debug("call_handling_error", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
