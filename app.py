@@ -1048,7 +1048,11 @@ def handle_incoming_twilio_call():
                 # The transfer will dequeue the customer from the queue
                 if technician_already_informed:
                     # Schedule the transfer to happen shortly after this response completes
-                    # Use lambda to capture current values and avoid race conditions
+                    # Use a background thread to avoid blocking the TwiML response
+                    # Daemon=True is appropriate here because:
+                    # 1. Flask app is long-running, not expected to shutdown during operation
+                    # 2. If process exits, Twilio handles call state independently
+                    # 3. We don't want to delay shutdown waiting for transfers
                     def delayed_transfer(eid, target, from_num):
                         time.sleep(CUSTOMER_ENQUEUE_DELAY)
                         transfer_customer_to_target(eid, target, from_num)
@@ -1072,7 +1076,8 @@ def handle_incoming_twilio_call():
             # If technician was already informed, immediately connect
             if technician_already_informed:
                 # Schedule the connection to happen shortly after this response completes
-                # Use lambda to capture current values and avoid race conditions
+                # Use a background thread to avoid blocking the TwiML response
+                # Daemon=True is appropriate here (same reasoning as transfer mode above)
                 technician_number = emergency.get('technician_number')
                 def delayed_connect(eid, tech_num):
                     time.sleep(CUSTOMER_ENQUEUE_DELAY)
