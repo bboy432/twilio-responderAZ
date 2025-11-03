@@ -117,14 +117,26 @@ See [dashboard/README.md](dashboard/README.md) for full documentation.
 - Debugging: The app can post structured debug events to `DEBUG_WEBHOOK_URL` or a `webhook_url` provided to the debug endpoint.
 - Logs: The application writes logs to `/app/logs/app.log` and exposes parsing utilities for timeline/summary extraction.
 
-## Important environment variables
-- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` — Twilio credentials
-- `TWILIO_PHONE_NUMBER`, `TWILIO_AUTOMATED_NUMBER`, `TWILIO_TRANSFER_NUMBER` — phone numbers used by Twilio flows
+## Environment Variables
+
+### Bootstrap Environment Variables (Required)
+These minimal environment variables are needed to start the application and connect to the admin dashboard:
+
+- `BRANCH_NAME` — Identifies which branch instance this is (e.g., `tuc`, `poc`, `rex`)
+- `ADMIN_DASHBOARD_URL` — URL to the admin dashboard for fetching settings (default: `http://admin-dashboard:5000`)
 - `PUBLIC_URL` — Public URL where Twilio should post callbacks (e.g., https://yourdomain.com)
 - `FLASK_PORT` — Port the Flask app listens on (default `5000`)
-- `RECIPIENT_PHONES` — Comma-separated list of additional SMS recipients
-- `RECIPIENT_EMAILS` — Comma-separated list of emails used for simulated email notifications
-- `DEBUG_WEBHOOK_URL` — (Optional) If set, the app will POST structured debugging events to this URL. The application works fully without this variable - all events are logged locally regardless.
+
+### Operational Settings (Configured via Admin Dashboard)
+All operational configuration should be managed through the admin dashboard web interface, not environment variables:
+
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` — Twilio credentials
+- `TWILIO_PHONE_NUMBER`, `TWILIO_AUTOMATED_NUMBER`, `TWILIO_TRANSFER_NUMBER` — phone numbers used by Twilio flows
+- `RECIPIENT_PHONES` — Comma-separated list or JSON array of SMS recipients
+- `RECIPIENT_EMAILS` — Comma-separated list of emails for notifications
+- `DEBUG_WEBHOOK_URL` — (Optional) URL for posting structured debugging events
+
+**Note:** The admin dashboard can use environment variables as initial defaults (e.g., `TUC_TWILIO_ACCOUNT_SID`), but once settings are saved through the dashboard, those database values take precedence. This allows for easy migration from environment-based configuration to dashboard-based configuration.
 
 ## Endpoints (for dashboard integration)
 All endpoints are mounted at the app root (e.g., `https://yourdomain.com/`). Replace `{{BASE_URL}}` with your configured `PUBLIC_URL`.
