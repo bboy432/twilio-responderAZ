@@ -1139,9 +1139,9 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
         })
         
         # Get current settings
-        account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
-        auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
-        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+        account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
+        auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
+        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
         
         # Validate configuration
         if not all([account_sid, auth_token, automated_number]):
