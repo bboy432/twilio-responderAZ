@@ -335,6 +335,13 @@ def update_active_emergency(key, value):
     with active_emergency_lock:
         if active_emergency:
             active_emergency[key] = value
+        else:
+            # Log if trying to update when no emergency is active
+            send_debug("update_emergency_failed", {
+                "reason": "no_active_emergency",
+                "attempted_key": key,
+                "attempted_value": str(value)
+            })
 
 def clear_active_emergency():
     """Safely clears the active emergency data."""
@@ -981,8 +988,19 @@ def handle_incoming_twilio_call():
         return str(response), 200, {'Content-Type': 'application/xml'}
 
     emergency_id = emergency.get('id')
+    emergency_status = emergency.get('status')
     update_active_emergency('status', 'customer_waiting')
     update_active_emergency('customer_call_sid', request.values.get('CallSid'))
+
+    # Check if technician was already informed (notification completed before customer called)
+    technician_already_informed = (emergency_status == 'technician_informed')
+    
+    if technician_already_informed:
+        send_debug("customer_called_after_notification", {
+            "emergency_id": emergency_id,
+            "previous_status": emergency_status,
+            "action": "will_initiate_connection_immediately"
+        })
 
     try:
         # Check if transfer call is enabled
@@ -1013,12 +1031,25 @@ def handle_incoming_twilio_call():
                 send_debug("customer_queued_for_transfer", {
                     "emergency_id": emergency_id,
                     "transfer_target": transfer_target,
-                    "waiting_for_notification": True
+                    "waiting_for_notification": True,
+                    "technician_already_informed": technician_already_informed
                 })
                 
                 # Store transfer configuration in emergency state for later use
                 update_active_emergency('transfer_target', transfer_target)
                 update_active_emergency('transfer_from', transfer_from)
+                
+                # If technician was already informed, immediately initiate transfer
+                # We need to let the TwiML return first, then initiate the transfer
+                # The transfer will dequeue the customer from the queue
+                if technician_already_informed:
+                    # Schedule the transfer to happen shortly after this response completes
+                    import threading
+                    def delayed_transfer():
+                        import time
+                        time.sleep(1)  # Brief delay to ensure customer is enqueued
+                        transfer_customer_to_target(emergency_id, transfer_target, transfer_from)
+                    threading.Thread(target=delayed_transfer, daemon=True).start()
         else:
             # Queue mode: original behavior
             response.say("Please hold while we connect you to the emergency technician.")
@@ -1026,7 +1057,20 @@ def handle_incoming_twilio_call():
             # Put the customer in a queue with hold music
             response.enqueue(emergency_id, wait_url="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
 
-            send_debug("customer_queued", {"emergency_id": emergency_id})
+            send_debug("customer_queued", {
+                "emergency_id": emergency_id,
+                "technician_already_informed": technician_already_informed
+            })
+            
+            # If technician was already informed, immediately connect
+            if technician_already_informed:
+                # Schedule the connection to happen shortly after this response completes
+                import threading
+                def delayed_connect():
+                    import time
+                    time.sleep(1)  # Brief delay to ensure customer is enqueued
+                    connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
+                threading.Thread(target=delayed_connect, daemon=True).start()
             
     except Exception as e:
         send_debug("call_handling_error", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
@@ -1118,6 +1162,13 @@ def technician_call_ended():
     elif customer_is_waiting:
         # Queue mode: connect technician to customer
         connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
+    else:
+        # Customer hasn't called yet - keep emergency active and wait
+        send_debug("waiting_for_customer_call", {
+            "emergency_id": emergency_id,
+            "status": "technician_informed",
+            "message": "Notification complete, waiting for customer to call in"
+        })
 
     return '', 200
 
