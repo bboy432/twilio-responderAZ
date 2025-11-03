@@ -270,6 +270,7 @@ def parse_log_for_timeline():
         "INCOMING TWILIO CALL": "Telephony: Incoming Call",
         "INCOMING SMS": "SMS: Status Request",
         "TRANSFER STATUS UPDATE": "Telephony: Call Transfer Update",
+        "TRANSFER_COMPLETE": "Telephony: Transfer Complete",
         "AUTOMATED CALL STATUS UPDATE": "Telephony: Outbound Call Update",
         "ERRORS RESOLVED": "System: Logs Cleared"
     }
