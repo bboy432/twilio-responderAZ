@@ -982,7 +982,7 @@ def handle_incoming_twilio_call():
         enable_transfer = get_setting('enable_transfer_call', 'false')
         
         if enable_transfer == 'true':
-            # Transfer call mode: directly connect to transfer target number
+            # Transfer call mode: validate configuration first
             transfer_target = get_setting('TRANSFER_TARGET_PHONE_NUMBER', TRANSFER_TARGET_PHONE_NUMBER)
             transfer_from = get_setting('TWILIO_TRANSFER_NUMBER', TWILIO_TRANSFER_NUMBER)
             
@@ -996,23 +996,26 @@ def handle_incoming_twilio_call():
                 response.say("We apologize, but the transfer service is not properly configured. Please try again later.")
                 response.hangup()
             else:
-                response.say("Please hold while we transfer your call.")
+                # Put customer on hold while technician receives notification
+                response.say("Please hold while we notify the technician about your emergency.")
                 
-                # Use Dial to transfer the call to the target number
-                dial = Dial(
-                    caller_id=transfer_from if transfer_from and transfer_from.startswith('+') else None,
-                    action=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
-                    timeout=30
-                )
-                dial.number(transfer_target)
-                response.append(dial)
+                # Put the customer in a queue with hold music
+                # They will be transferred after the technician notification call completes
+                response.enqueue(emergency_id, wait_url="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
                 
-                send_debug("call_transfer_initiated", {
+                send_debug("customer_queued_for_transfer", {
                     "emergency_id": emergency_id,
                     "transfer_target": transfer_target,
-                    "transfer_from": transfer_from
+                    "waiting_for_notification": True
                 })
-                update_active_emergency('status', 'transferred')
+                
+                # Store transfer configuration in emergency state for later use
+                update_active_emergency('transfer_target', transfer_target)
+                update_active_emergency('transfer_from', transfer_from)
+                
+                # If technician notification has already completed, transfer immediately
+                if emergency.get('status') == 'technician_informed':
+                    transfer_customer_to_target(emergency_id, transfer_target, transfer_from)
         else:
             # Queue mode: original behavior
             response.say("Please hold while we connect you to the emergency technician.")
@@ -1102,11 +1105,81 @@ def technician_call_ended():
     # Now, update the status to show the technician has been informed.
     update_active_emergency('status', 'technician_informed')
 
-    # If a customer was waiting, connect the technician now.
-    if customer_is_waiting:
+    # Check if we're in transfer mode
+    transfer_target = emergency.get('transfer_target')
+    transfer_from = emergency.get('transfer_from')
+    
+    if transfer_target and customer_is_waiting:
+        # Transfer mode: dequeue customer and transfer to target
+        send_debug("initiating_transfer_after_notification", {
+            "emergency_id": emergency_id,
+            "transfer_target": transfer_target
+        })
+        transfer_customer_to_target(emergency_id, transfer_target, transfer_from)
+    elif customer_is_waiting:
+        # Queue mode: connect technician to customer
         connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
 
     return '', 200
+
+
+def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=None):
+    """Transfers the waiting customer to the target phone number by dequeuing them."""
+    try:
+        send_debug("transfer_customer_start", {
+            "emergency_id": emergency_id,
+            "transfer_target": transfer_target,
+            "transfer_from": transfer_from
+        })
+        
+        # Get current settings
+        account_sid = get_setting('TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID)
+        auth_token = get_setting('TWILIO_AUTH_TOKEN', TWILIO_AUTH_TOKEN)
+        automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', TWILIO_AUTOMATED_NUMBER)
+        
+        # Validate configuration
+        if not all([account_sid, auth_token, automated_number]):
+            send_debug("config_error", {"message": "Missing required Twilio configuration"})
+            raise ValueError("Missing required Twilio configuration")
+            
+        # Validate phone number
+        if not transfer_target or not transfer_target.startswith('+'):
+            send_debug("validation_error", {"message": f"Invalid transfer target format: {transfer_target}"})
+            raise ValueError(f"Invalid transfer target format: {transfer_target}")
+            
+        client = Client(account_sid, auth_token)
+        send_debug("twilio_client_created", {"for": "customer_transfer"})
+        
+        # Create TwiML to dequeue customer and transfer to target
+        # Use Dial with Number to transfer the dequeued customer
+        caller_id_attr = f' callerId="{transfer_from}"' if transfer_from and transfer_from.startswith('+') else ''
+        transfer_twiml = (
+            f'<Response>'
+            f'<Say>Transferring the customer to you now.</Say>'
+            f'<Dial{caller_id_attr} action="{public_url}/transfer_complete?emergency_id={emergency_id}" timeout="30">'
+            f'<Queue>{emergency_id}</Queue>'
+            f'</Dial>'
+            f'</Response>'
+        )
+        send_debug("transfer_twiml", {"twiml": transfer_twiml})
+        
+        # Make the call to the transfer target to dequeue and connect the customer
+        call = client.calls.create(
+            twiml=transfer_twiml,
+            to=transfer_target,
+            from_=automated_number,
+            status_callback=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
+            status_callback_event=['completed']
+        )
+        send_debug("transfer_call_initiated", {"call_sid": call.sid, "transfer_target": transfer_target})
+        return True
+        
+    except ValueError as ve:
+        send_debug("transfer_config_error", {"error": str(ve)})
+        return False
+    except Exception as e:
+        send_debug("transfer_failure", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
+        return False
 
 
 def connect_technician_to_customer(emergency_id, technician_number):
