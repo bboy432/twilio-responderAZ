@@ -1130,6 +1130,17 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
             "transfer_from": transfer_from
         })
         
+        # Get current emergency to retrieve customer_call_sid
+        emergency = get_active_emergency()
+        if not emergency:
+            send_debug("transfer_error", {"message": "No active emergency found"})
+            return False
+        
+        customer_call_sid = emergency.get('customer_call_sid')
+        if not customer_call_sid:
+            send_debug("transfer_error", {"message": "No customer call SID found in emergency state"})
+            return False
+        
         # Get current settings
         account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
         auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
@@ -1148,38 +1159,76 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
         client = Client(account_sid, auth_token)
         send_debug("twilio_client_created", {"for": "customer_transfer"})
         
-        # Create TwiML to dequeue customer and transfer to target
-        # Use proper TwiML library instead of string concatenation
-        response = VoiceResponse()
-        response.say("Transferring the customer to you now.")
-        
-        # Dial with Queue to dequeue the waiting customer
-        dial = Dial(
-            action=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
-            timeout=30
-        )
-        
-        # Set caller ID if configured
-        if transfer_from and transfer_from.startswith('+'):
-            dial.caller_id = transfer_from
-        
-        # Connect to the queue to dequeue the customer
-        dial.queue(emergency_id)
-        response.append(dial)
-        
-        transfer_twiml = str(response)
-        send_debug("transfer_twiml", {"twiml": transfer_twiml})
-        
-        # Make the call to the transfer target to dequeue and connect the customer
-        call = client.calls.create(
-            twiml=transfer_twiml,
-            to=transfer_target,
-            from_=automated_number,
-            status_callback=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
-            status_callback_event=['completed']
-        )
-        send_debug("transfer_call_initiated", {"call_sid": call.sid, "transfer_target": transfer_target})
-        return True
+        # Use Twilio's call modification API to redirect the queued customer call
+        # to dial the transfer target directly. This is more reliable than dequeue.
+        try:
+            # Create TwiML that will dial the transfer target
+            response = VoiceResponse()
+            response.say("Please hold, connecting your call now.")
+            
+            dial = Dial(
+                action=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
+                timeout=30
+            )
+            
+            # Set caller ID if configured
+            if transfer_from and transfer_from.startswith('+'):
+                dial.caller_id = transfer_from
+            
+            # Dial the transfer target number directly
+            dial.number(transfer_target)
+            response.append(dial)
+            
+            transfer_twiml = str(response)
+            send_debug("transfer_twiml_redirect", {"twiml": transfer_twiml, "customer_call_sid": customer_call_sid})
+            
+            # Modify the in-progress customer call to use the new TwiML
+            # This pulls them out of the queue and redirects to the transfer target
+            call = client.calls(customer_call_sid).update(
+                twiml=transfer_twiml
+            )
+            send_debug("transfer_call_redirected", {
+                "customer_call_sid": customer_call_sid,
+                "transfer_target": transfer_target,
+                "call_status": call.status
+            })
+            return True
+            
+        except Exception as redirect_error:
+            send_debug("transfer_redirect_error", {"error": str(redirect_error)})
+            # Fall back to dequeue method if redirect fails
+            send_debug("falling_back_to_dequeue_method", {})
+            
+            # Create TwiML to dequeue customer and transfer to target
+            response = VoiceResponse()
+            response.say("Transferring the customer to you now.")
+            
+            dial = Dial(
+                action=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
+                timeout=30
+            )
+            
+            # Set caller ID if configured
+            if transfer_from and transfer_from.startswith('+'):
+                dial.caller_id = transfer_from
+            
+            # Connect to the queue to dequeue the customer
+            dial.queue(emergency_id)
+            response.append(dial)
+            
+            transfer_twiml = str(response)
+            send_debug("transfer_twiml_dequeue", {"twiml": transfer_twiml})
+            
+            # Make the call to the transfer target to dequeue and connect the customer
+            call = client.calls.create(
+                twiml=transfer_twiml,
+                to=transfer_target,
+                from_=automated_number,
+                status_callback=f"{public_url}/transfer_complete?emergency_id={emergency_id}",
+                status_callback_event=['completed']
+            )
+            send_debug("transfer_call_initiated_dequeue", {"call_sid": call.sid, "transfer_target": transfer_target})
+            return True
         
     except ValueError as ve:
         send_debug("transfer_config_error", {"error": str(ve)})
