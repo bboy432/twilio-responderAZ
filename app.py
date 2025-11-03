@@ -1018,10 +1018,6 @@ def handle_incoming_twilio_call():
                 # Store transfer configuration in emergency state for later use
                 update_active_emergency('transfer_target', transfer_target)
                 update_active_emergency('transfer_from', transfer_from)
-                
-                # If technician notification has already completed, transfer immediately
-                if emergency.get('status') == 'technician_informed':
-                    transfer_customer_to_target(emergency_id, transfer_target, transfer_from)
         else:
             # Queue mode: original behavior
             response.say("Please hold while we connect you to the emergency technician.")
@@ -1030,10 +1026,6 @@ def handle_incoming_twilio_call():
             response.enqueue(emergency_id, wait_url="http://com.twilio.music.classical.s3.amazonaws.com/BusyStrings.mp3")
 
             send_debug("customer_queued", {"emergency_id": emergency_id})
-
-            # If technician is ready, connect them right away
-            if emergency.get('status') == 'technician_informed':
-                connect_technician_to_customer(emergency_id, emergency.get('technician_number'))
             
     except Exception as e:
         send_debug("call_handling_error", {"error": str(e), "type": str(type(e)), "repr": repr(e)})
