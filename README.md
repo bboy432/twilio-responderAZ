@@ -32,14 +32,8 @@ docker-compose -f docker-compose.multi.yml up -d
 
 ### Getting Started
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in minutes
-- **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** - 📞 **How the warm transfer system works** (Start here!)
 - **[docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-
-### Call System Documentation
-- **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** - Complete explanation of warm transfer flow
-- **[WARM_TRANSFER_FLOW.md](WARM_TRANSFER_FLOW.md)** - Technical details of call flow
-- **[TRANSFER_CALL_FEATURE.md](TRANSFER_CALL_FEATURE.md)** - Transfer mode configuration
 
 ### Features & Configuration
 - **[docs/features/CALL_RECORDINGS_FEATURE.md](docs/features/CALL_RECORDINGS_FEATURE.md)** - Call recordings documentation
