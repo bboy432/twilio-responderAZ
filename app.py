@@ -23,6 +23,7 @@ LOG_PATH = "/app/logs/app.log"
 try:
     from twilio.rest import Client
     from twilio.twiml.voice_response import VoiceResponse, Dial, Pause
+    from twilio.base.exceptions import TwilioRestException
 except ImportError:
     print("Twilio library not found. Please install it using: pip install twilio")
     exit()
@@ -1133,12 +1134,19 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
         # Get current emergency to retrieve customer_call_sid
         emergency = get_active_emergency()
         if not emergency:
-            send_debug("transfer_error", {"message": "No active emergency found"})
+            send_debug("transfer_error", {
+                "message": "No active emergency found",
+                "emergency_id": emergency_id
+            })
             return False
         
         customer_call_sid = emergency.get('customer_call_sid')
         if not customer_call_sid:
-            send_debug("transfer_error", {"message": "No customer call SID found in emergency state"})
+            send_debug("transfer_error", {
+                "message": "No customer call SID found in emergency state",
+                "emergency_id": emergency_id,
+                "emergency_state": emergency
+            })
             return False
         
         # Get current settings
@@ -1194,10 +1202,23 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
             })
             return True
             
-        except Exception as redirect_error:
-            send_debug("transfer_redirect_error", {"error": str(redirect_error)})
+        except TwilioRestException as twilio_error:
+            send_debug("transfer_redirect_twilio_error", {
+                "error": str(twilio_error),
+                "error_code": twilio_error.code,
+                "error_status": twilio_error.status,
+                "emergency_id": emergency_id
+            })
             # Fall back to dequeue method if redirect fails
-            send_debug("falling_back_to_dequeue_method", {})
+            send_debug("falling_back_to_dequeue_method", {"emergency_id": emergency_id})
+        except Exception as redirect_error:
+            send_debug("transfer_redirect_error", {
+                "error": str(redirect_error),
+                "error_type": str(type(redirect_error)),
+                "emergency_id": emergency_id
+            })
+            # Fall back to dequeue method if redirect fails
+            send_debug("falling_back_to_dequeue_method", {"emergency_id": emergency_id})
             
             # Create TwiML to dequeue customer and transfer to target
             response = VoiceResponse()
