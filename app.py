@@ -1054,8 +1054,19 @@ def handle_incoming_twilio_call():
                     # 2. If process exits, Twilio handles call state independently
                     # 3. We don't want to delay shutdown waiting for transfers
                     def delayed_transfer(eid, target, from_num):
-                        time.sleep(CUSTOMER_ENQUEUE_DELAY)
-                        transfer_customer_to_target(eid, target, from_num)
+                        try:
+                            time.sleep(CUSTOMER_ENQUEUE_DELAY)
+                            send_debug("delayed_transfer_executing", {
+                                "emergency_id": eid,
+                                "transfer_target": target
+                            })
+                            transfer_customer_to_target(eid, target, from_num)
+                        except Exception as e:
+                            send_debug("delayed_transfer_error", {
+                                "emergency_id": eid,
+                                "error": str(e),
+                                "type": str(type(e))
+                            })
                     threading.Thread(
                         target=delayed_transfer,
                         args=(emergency_id, transfer_target, transfer_from),
@@ -1080,8 +1091,19 @@ def handle_incoming_twilio_call():
                 # Daemon=True is appropriate here (same reasoning as transfer mode above)
                 technician_number = emergency.get('technician_number')
                 def delayed_connect(eid, tech_num):
-                    time.sleep(CUSTOMER_ENQUEUE_DELAY)
-                    connect_technician_to_customer(eid, tech_num)
+                    try:
+                        time.sleep(CUSTOMER_ENQUEUE_DELAY)
+                        send_debug("delayed_connect_executing", {
+                            "emergency_id": eid,
+                            "technician_number": tech_num
+                        })
+                        connect_technician_to_customer(eid, tech_num)
+                    except Exception as e:
+                        send_debug("delayed_connect_error", {
+                            "emergency_id": eid,
+                            "error": str(e),
+                            "type": str(type(e))
+                        })
                 threading.Thread(
                     target=delayed_connect,
                     args=(emergency_id, technician_number),
