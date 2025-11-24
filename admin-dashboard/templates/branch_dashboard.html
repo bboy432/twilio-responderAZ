@@ -9,49 +9,6 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        .collapsible-section {
-            margin-bottom: 20px;
-        }
-        .collapsible-header {
-            background: #f8f9fa;
-            padding: 15px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid #dee2e6;
-            transition: all 0.3s ease;
-        }
-        .collapsible-header:hover {
-            background: #e9ecef;
-        }
-        .collapsible-header h3 {
-            margin: 0;
-            font-size: 1.1em;
-        }
-        .collapsible-toggle {
-            font-size: 1.5em;
-            transition: transform 0.3s ease;
-        }
-        .collapsible-toggle.open {
-            transform: rotate(180deg);
-        }
-        .collapsible-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-        .collapsible-content.open {
-            max-height: 2000px;
-            transition: max-height 0.5s ease;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
 </head>
 <body>
     <nav class="navbar">
@@ -243,19 +200,6 @@
     </div>
 
     <script>
-        function toggleCollapsible(sectionId) {
-            const content = document.getElementById(sectionId + '-content');
-            const toggle = document.getElementById(sectionId + '-toggle');
-            
-            if (content.classList.contains('open')) {
-                content.classList.remove('open');
-                toggle.classList.remove('open');
-            } else {
-                content.classList.add('open');
-                toggle.classList.add('open');
-            }
-        }
-        
         let recordingsLoaded = false;
         function loadCallRecordingsOnOpen(branchKey) {
             // Only load once when the section is first opened

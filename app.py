@@ -368,6 +368,23 @@ def log_request_details(req):
 
 # --- Formatting and Helper Functions ---
 
+def validate_phone_number(phone_number, field_name="phone number"):
+    """Validates that a phone number is not empty and starts with '+'.
+    
+    Args:
+        phone_number: The phone number to validate
+        field_name: Human-readable name for error messages
+        
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    if not phone_number:
+        return False, f"{field_name} is missing or empty"
+    if not phone_number.startswith('+'):
+        return False, f"Invalid {field_name} format (missing country code): {phone_number}"
+    return True, None
+
+
 def add_pauses_to_number(text):
     """Adds periods between characters to create pauses for TTS."""
     return '. '.join(list(text)) + '.'
@@ -498,40 +515,32 @@ def make_emergency_call(emergency_id, emergency_data):
         "emergency_data": emergency_data
     })
     try:
-        # Validate required configuration
+        # Validate technician number
         technician_number = emergency_data.get('technician_number')
-        if not technician_number:
-            error_msg = "Technician number is missing from emergency data"
-            send_debug("emergency_call_validation_error", {"error": error_msg})
-            return False, error_msg
-        
-        if not technician_number.startswith('+'):
-            error_msg = f"Invalid technician number format (missing country code): {technician_number}"
+        is_valid, error_msg = validate_phone_number(technician_number, "technician number")
+        if not is_valid:
             send_debug("emergency_call_validation_error", {"error": error_msg})
             return False, error_msg
         
         # Get Twilio configuration from admin dashboard
-        account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
-        auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
         automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
         
-        # Validate Twilio configuration
-        if not account_sid or not auth_token:
-            error_msg = "Twilio credentials (ACCOUNT_SID or AUTH_TOKEN) are not configured in admin dashboard"
-            send_debug("emergency_call_config_error", {"error": error_msg})
-            return False, error_msg
-        
+        # Validate automated number
         if not automated_number:
             error_msg = "TWILIO_AUTOMATED_NUMBER is not configured in admin dashboard"
             send_debug("emergency_call_config_error", {"error": error_msg})
             return False, error_msg
         
-        if not automated_number.startswith('+'):
-            error_msg = f"Invalid automated number format (missing country code): {automated_number}"
+        is_valid, error_msg = validate_phone_number(automated_number, "automated number")
+        if not is_valid:
             send_debug("emergency_call_config_error", {"error": error_msg})
             return False, error_msg
         
-        client = get_twilio_client()
+        try:
+            client = get_twilio_client()
+        except ValueError as e:
+            send_debug("emergency_call_config_error", {"error": str(e)})
+            return False, str(e)
         send_debug("twilio_client_created", {"technician_number": technician_number})
         
         # Send SMS
@@ -1017,12 +1026,9 @@ def handle_incoming_twilio_call():
             transfer_from = get_setting('TWILIO_TRANSFER_NUMBER', '')
             
             # Validate transfer configuration
-            if not transfer_target:
-                send_debug("transfer_config_error", {"error": "TRANSFER_TARGET_PHONE_NUMBER not configured"})
-                response.say("We apologize, but the transfer service is not properly configured. Please try again later.")
-                response.hangup()
-            elif not transfer_target.startswith('+'):
-                send_debug("transfer_config_error", {"error": f"Invalid transfer target format: {transfer_target}"})
+            is_valid, error_msg = validate_phone_number(transfer_target, "transfer target")
+            if not is_valid:
+                send_debug("transfer_config_error", {"error": error_msg})
                 response.say("We apologize, but the transfer service is not properly configured. Please try again later.")
                 response.hangup()
             else:
@@ -1239,22 +1245,21 @@ def transfer_customer_to_target(emergency_id, transfer_target, transfer_from=Non
             })
             return False
         
-        # Get current settings
-        account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
-        auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
+        # Get automated number from settings
         automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
         
         # Validate configuration
-        if not all([account_sid, auth_token, automated_number]):
-            send_debug("config_error", {"message": "Missing required Twilio configuration"})
+        if not automated_number:
+            send_debug("config_error", {"message": "Missing TWILIO_AUTOMATED_NUMBER configuration"})
             raise ValueError("Missing required Twilio configuration")
             
-        # Validate phone number
-        if not transfer_target or not transfer_target.startswith('+'):
-            send_debug("validation_error", {"message": f"Invalid transfer target format: {transfer_target}"})
-            raise ValueError(f"Invalid transfer target format: {transfer_target}")
+        # Validate transfer target phone number
+        is_valid, error_msg = validate_phone_number(transfer_target, "transfer target")
+        if not is_valid:
+            send_debug("validation_error", {"message": error_msg})
+            raise ValueError(error_msg)
             
-        client = Client(account_sid, auth_token)
+        client = get_twilio_client()
         send_debug("twilio_client_created", {"for": "customer_transfer"})
         
         # Warm transfer implementation: Make a call to the transfer target that will
@@ -1319,22 +1324,21 @@ def connect_technician_to_customer(emergency_id, technician_number):
             "known_contact": KNOWN_CONTACTS.get(technician_number, 'Unknown')
         })
         
-        # Get current settings from admin dashboard
-        account_sid = get_setting('TWILIO_ACCOUNT_SID', '')
-        auth_token = get_setting('TWILIO_AUTH_TOKEN', '')
+        # Get automated number from settings
         automated_number = get_setting('TWILIO_AUTOMATED_NUMBER', '')
         
         # Validate configuration
-        if not all([account_sid, auth_token, automated_number]):
-            send_debug("config_error", {"message": "Missing required Twilio configuration in admin dashboard"})
+        if not automated_number:
+            send_debug("config_error", {"message": "Missing TWILIO_AUTOMATED_NUMBER configuration in admin dashboard"})
             raise ValueError("Missing required Twilio configuration in admin dashboard")
             
-        # Validate phone number
-        if not technician_number or not technician_number.startswith('+'):
-            send_debug("validation_error", {"message": f"Invalid technician number format: {technician_number}"})
-            raise ValueError(f"Invalid technician number format: {technician_number}")
+        # Validate technician phone number
+        is_valid, error_msg = validate_phone_number(technician_number, "technician number")
+        if not is_valid:
+            send_debug("validation_error", {"message": error_msg})
+            raise ValueError(error_msg)
             
-        client = Client(account_sid, auth_token)
+        client = get_twilio_client()
         send_debug("twilio_client_created", {"for": "customer_connection"})
         
         # Create TwiML to connect technician to the queue
