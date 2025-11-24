@@ -3,12 +3,30 @@
 Common issues and their solutions for the multi-instance Twilio responder system.
 
 ## Table of Contents
+- [Call Failures](#call-failures)
 - [Deployment Issues](#deployment-issues)
 - [Connectivity Issues](#connectivity-issues)
 - [Authentication Issues](#authentication-issues)
 - [Branch Status Issues](#branch-status-issues)
 - [Notification Issues](#notification-issues)
 - [Performance Issues](#performance-issues)
+
+---
+
+## Call Failures
+
+For issues with calls not initiating, transfers failing, or customers hearing errors, see the dedicated guide:
+
+**📞 [Call Failures Troubleshooting Guide](CALL_FAILURES_TROUBLESHOOTING.md)**
+
+This covers:
+- Warm Transfer / Queue Update issues
+- Silent failures in automated calls
+- Step-by-step debugging procedures
+- Common error messages and solutions
+
+Also see:
+- [features/DEBUGGING_CALLS.md](features/DEBUGGING_CALLS.md) - Quick debugging guide
 
 ---
 

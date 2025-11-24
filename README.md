@@ -40,6 +40,7 @@ docker-compose -f docker-compose.multi.yml up -d
 - **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** - Complete explanation of warm transfer flow
 - **[WARM_TRANSFER_FLOW.md](WARM_TRANSFER_FLOW.md)** - Technical details of call flow
 - **[TRANSFER_CALL_FEATURE.md](TRANSFER_CALL_FEATURE.md)** - Transfer mode configuration
+- **[docs/CALL_FAILURES_TROUBLESHOOTING.md](docs/CALL_FAILURES_TROUBLESHOOTING.md)** - 🔧 **Troubleshoot call failures**
 
 ### Features & Configuration
 - **[docs/features/CALL_RECORDINGS_FEATURE.md](docs/features/CALL_RECORDINGS_FEATURE.md)** - Call recordings documentation

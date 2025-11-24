@@ -11,6 +11,7 @@ This directory contains detailed documentation for the Twilio Responder system.
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design overview
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[CALL_FAILURES_TROUBLESHOOTING.md](CALL_FAILURES_TROUBLESHOOTING.md)** - 📞 Troubleshoot call failures (transfers, silent failures)
 
 ## Deployment
 
