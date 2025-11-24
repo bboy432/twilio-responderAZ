@@ -372,8 +372,8 @@ def validate_phone_number(phone_number, field_name="phone number"):
     """Validates that a phone number is not empty and starts with '+'.
     
     Args:
-        phone_number: The phone number to validate
-        field_name: Human-readable name for error messages
+        phone_number (str | None): The phone number to validate. Can be None or empty.
+        field_name (str): Human-readable name for error messages
         
     Returns:
         tuple: (is_valid: bool, error_message: str or None)
