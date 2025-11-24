@@ -142,13 +142,13 @@ curl -X POST https://tuc.axiom-emergencies.com/webhook \
     "user_stated_callback_number": "+15551234567",
     "incident_address": "123 Test St",
     "emergency_description_text": "Test emergency",
-    "chosen_phone": "+18017104034"
+    "chosen_phone": "+15551234567"
   }'
 ```
 
 **Replace:**
 - `tuc.axiom-emergencies.com` with your branch URL
-- `+18017104034` with the technician's phone number
+- `+15551234567` with the technician's actual phone number (must include `+` country code)
 
 **Expected responses:**
 - `200 OK` with `{"status": "success", ...}` - Call initiated successfully
@@ -160,6 +160,8 @@ You can also use the included test script:
 ```bash
 ./test_webhook.sh https://tuc.axiom-emergencies.com +15551234567
 ```
+
+**Note:** Replace the phone number with the technician's actual phone number.
 
 ### Step 3: Verify Credentials
 
