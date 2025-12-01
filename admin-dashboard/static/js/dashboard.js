@@ -1,5 +1,19 @@
 // Dashboard JavaScript
 
+// Shared utility: Toggle collapsible sections
+function toggleCollapsible(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    const toggle = document.getElementById(sectionId + '-toggle');
+    
+    if (content.classList.contains('open')) {
+        content.classList.remove('open');
+        toggle.classList.remove('open');
+    } else {
+        content.classList.add('open');
+        toggle.classList.add('open');
+    }
+}
+
 function refreshDashboard() {
     window.location.reload();
 }
